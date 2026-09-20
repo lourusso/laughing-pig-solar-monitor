@@ -4,34 +4,36 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Laughing Pig Solar Monitor</title>
-  <link rel="stylesheet" href="/static/css/style.css?v=1.1.6">
+  <link rel="stylesheet" href="/static/css/style.css?v=1.1.7">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
   <header>
-    <div class="brand">
-      <span style="font-size: 1.6rem;">☀️</span>
-      <div>
-        <h1>Laughing Pig Solar Monitor</h1>
-        <p style="font-size: 0.75rem; color: #64748b;">Hybrid Solar & Energy Storage Telemetry</p>
+    <div class="header-inner">
+      <div class="brand">
+        <span style="font-size: 1.6rem;">☀️</span>
+        <div>
+          <h1>Laughing Pig Solar Monitor</h1>
+          <p style="font-size: 0.75rem; color: #64748b;">Hybrid Solar & Energy Storage Telemetry</p>
+        </div>
       </div>
-    </div>
-    <div class="header-status">
-      <div id="pill-classic" class="pill" onclick="window.location.href='/device/classic-1'" style="cursor: pointer;" title="Click to view MidNite Classic #1 details">
-        <span class="pill-dot"></span>
-        <span>Classic #1: Checking...</span>
-      </div>
-      <div id="pill-classic2" class="pill" onclick="window.location.href='/device/classic-2'" style="cursor: pointer;" title="Click to view MidNite Classic #2 details (192.168.42.130)">
-        <span class="pill-dot"></span>
-        <span>Classic #2: Checking...</span>
-      </div>
-      <div id="pill-webbox" class="pill" onclick="window.location.href='/device/sunny-island'" style="cursor: pointer;" title="Click to view Sunny Island & WebBox details">
-        <span class="pill-dot"></span>
-        <span>WebBox: Checking...</span>
-      </div>
-      <div id="pill-sunnyboy" class="pill" onclick="window.location.href='/device/sunny-boy'" style="cursor: pointer;" title="Click to view SMA Sunny Boy 4000 details">
-        <span class="pill-dot"></span>
-        <span>SB4000: Checking...</span>
+      <div class="header-status">
+        <div id="pill-classic" class="pill" onclick="window.location.href='/device/classic-1'" style="cursor: pointer;" title="Click to view MidNite Classic #1 details">
+          <span class="pill-dot"></span>
+          <span>Classic #1: Checking...</span>
+        </div>
+        <div id="pill-classic2" class="pill" onclick="window.location.href='/device/classic-2'" style="cursor: pointer;" title="Click to view MidNite Classic #2 details (192.168.42.130)">
+          <span class="pill-dot"></span>
+          <span>Classic #2: Checking...</span>
+        </div>
+        <div id="pill-webbox" class="pill" onclick="window.location.href='/device/sunny-island'" style="cursor: pointer;" title="Click to view Sunny Island & WebBox details">
+          <span class="pill-dot"></span>
+          <span>WebBox: Checking...</span>
+        </div>
+        <div id="pill-sunnyboy" class="pill" onclick="window.location.href='/device/sunny-boy'" style="cursor: pointer;" title="Click to view SMA Sunny Boy 4000 details">
+          <span class="pill-dot"></span>
+          <span>SB4000: Checking...</span>
+        </div>
       </div>
     </div>
   </header>

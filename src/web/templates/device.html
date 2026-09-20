@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Device Telemetry - Laughing Pig Solar Monitor</title>
-  <link rel="stylesheet" href="/static/css/style.css?v=1.1.4">
+  <link rel="stylesheet" href="/static/css/style.css?v=1.1.7">
   <style>
     .device-header {
       display: flex;
@@ -159,19 +159,21 @@
 </head>
 <body>
   <header>
-    <div class="header-left">
-      <span class="logo">🐷⚡</span>
-      <div>
-        <h1>Laughing Pig Solar Monitor</h1>
-        <p style="font-size: 0.75rem; color: #64748b;">Comprehensive Device Telemetry & Register Inspection</p>
+    <div class="header-inner">
+      <div class="header-left">
+        <span class="logo">🐷⚡</span>
+        <div>
+          <h1>Laughing Pig Solar Monitor</h1>
+          <p style="font-size: 0.75rem; color: #64748b;">Comprehensive Device Telemetry & Register Inspection</p>
+        </div>
       </div>
-    </div>
-    <div class="header-status">
-      <div id="device-pill" class="pill">
-        <span class="pill-dot"></span>
-        <span id="device-status-text">Connecting...</span>
+      <div class="header-status">
+        <div id="device-pill" class="pill">
+          <span class="pill-dot"></span>
+          <span id="device-status-text">Connecting...</span>
+        </div>
+        <a href="/" class="btn-export">← Dashboard</a>
       </div>
-      <a href="/" class="btn-export">← Dashboard</a>
     </div>
   </header>
 
