@@ -159,6 +159,10 @@ document.addEventListener("DOMContentLoaded", () => {
       </div>
     `;
 
+    const btsConnected = d.battery_temp_c !== undefined && d.battery_temp_c > -40;
+    const btsVal = btsConnected ? `${d.battery_temp_c.toFixed(1)} °C` : "No BTS (Closed-Loop)";
+    const btsSub = btsConnected ? `${(d.battery_temp_f || 0).toFixed(1)} °F (Reg 4132)` : "Sensor Unplugged (Reg 4132)";
+
     // 2. Categorized Sections
     parameterSections.innerHTML = `
       <section class="device-section">
@@ -274,8 +278,8 @@ document.addEventListener("DOMContentLoaded", () => {
         <div class="params-grid">
           <div class="param-card">
             <span class="param-label">Remote Battery Temp</span>
-            <span class="param-val">${d.battery_temp_c !== undefined ? d.battery_temp_c.toFixed(1) + ' °C' : '--'}</span>
-            <span class="param-sub">${d.battery_temp_f !== undefined ? d.battery_temp_f.toFixed(1) + ' °F' : ''} (Reg 4132)</span>
+            <span class="param-val">${btsVal}</span>
+            <span class="param-sub">${btsSub}</span>
           </div>
           <div class="param-card">
             <span class="param-label">Power FETs Temp</span>
@@ -309,10 +313,10 @@ document.addEventListener("DOMContentLoaded", () => {
     if (isClassic2 && !payload.online) {
       parameterSections.innerHTML = `
         <div style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; padding: 1.25rem; margin-bottom: 1.5rem;">
-          <div style="font-weight: 600; color: #ef4444; margin-bottom: 0.35rem; font-size: 1rem;">Classic #2 Awaiting Network Connection</div>
+          <div style="font-weight: 600; color: #ef4444; margin-bottom: 0.35rem; font-size: 1rem;">Classic #2 Offline</div>
           <div style="color: var(--text-muted); font-size: 0.85rem; line-height: 1.5;">
-            This controller is pre-configured for static IP address <code>192.168.42.130:502</code>. 
-            Once the ethernet cable is connected and the unit is assigned this address, telemetry polling will automatically engage without restarting the service.
+            Unable to connect to controller at <code>192.168.42.130:502</code>. 
+            Please check the physical Ethernet connection and confirm controller IP address.
           </div>
         </div>
       ` + parameterSections.innerHTML;

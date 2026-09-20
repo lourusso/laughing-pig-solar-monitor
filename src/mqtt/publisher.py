@@ -75,6 +75,12 @@ class MQTTPublisher:
                 "solar/total_power": snapshot.total_pv_power_watts,
                 "solar/dc_power": snapshot.pv_dc_power_watts,
                 "solar/classic_bat_volts": snapshot.classic_bat_volts,
+                "solar/classic1_power": snapshot.classic1_power_watts,
+                "solar/classic1_daily": snapshot.classic1_daily_kwh,
+                "solar/classic1_stage": snapshot.classic1_stage,
+                "solar/classic2_power": snapshot.classic2_power_watts,
+                "solar/classic2_daily": snapshot.classic2_daily_kwh,
+                "solar/classic2_stage": snapshot.classic2_stage,
                 "solar/ac_power": snapshot.pv_ac_power_watts,
                 "battery/soc": snapshot.battery_soc,
                 "battery/volts": snapshot.battery_volts,
@@ -173,8 +179,50 @@ class MQTTPublisher:
                 "val_tpl": "{{ value_json.pv_dc_daily_kwh }}"
             },
             {
+                "id": "classic1_power",
+                "name": "MidNite Classic 1 Power",
+                "unit": "W",
+                "dev_cla": "power",
+                "stat_cla": "measurement",
+                "val_tpl": "{{ value_json.classic1_power_watts }}"
+            },
+            {
+                "id": "classic1_daily_yield",
+                "name": "MidNite Classic 1 Daily Yield",
+                "unit": "kWh",
+                "dev_cla": "energy",
+                "stat_cla": "total_increasing",
+                "val_tpl": "{{ value_json.classic1_daily_kwh }}"
+            },
+            {
+                "id": "classic1_stage",
+                "name": "MidNite Classic 1 Stage",
+                "val_tpl": "{{ value_json.classic1_stage }}"
+            },
+            {
+                "id": "classic2_power",
+                "name": "MidNite Classic 2 Power",
+                "unit": "W",
+                "dev_cla": "power",
+                "stat_cla": "measurement",
+                "val_tpl": "{{ value_json.classic2_power_watts }}"
+            },
+            {
+                "id": "classic2_daily_yield",
+                "name": "MidNite Classic 2 Daily Yield",
+                "unit": "kWh",
+                "dev_cla": "energy",
+                "stat_cla": "total_increasing",
+                "val_tpl": "{{ value_json.classic2_daily_kwh }}"
+            },
+            {
+                "id": "classic2_stage",
+                "name": "MidNite Classic 2 Stage",
+                "val_tpl": "{{ value_json.classic2_stage }}"
+            },
+            {
                 "id": "charge_stage",
-                "name": "MidNite Charge Stage",
+                "name": "MidNite Combined Charge Stage",
                 "val_tpl": "{{ value_json.charge_stage }}"
             }
         ]

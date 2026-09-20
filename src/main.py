@@ -40,12 +40,11 @@ class SolarMonitorService:
 
         self.classic2 = None
         if hasattr(config.modbus, "classic2") and config.modbus.classic2.enabled:
-            # Short timeout so offline Classic 2 does not block the polling cycle
             self.classic2 = MidNiteClassic(
                 host=config.modbus.classic2.host,
                 port=config.modbus.classic2.port,
                 unit_id=config.modbus.classic2.unit_id,
-                timeout=min(config.modbus.timeout_seconds, 1.5)
+                timeout=config.modbus.timeout_seconds
             )
 
         self.webbox = None
@@ -143,7 +142,7 @@ class SolarMonitorService:
         snapshot = TelemetrySnapshot(
             timestamp=datetime.now(timezone.utc).isoformat(),
             pv_dc_power_watts=pv_dc,
-            pv_dc_volts=float(classic1_data.get("pv_voltage", 0.0)),
+            pv_dc_volts=float(classic1_data.get("pv_voltage", 0.0)) or float(classic2_data.get("pv_voltage", 0.0)),
             pv_dc_amps=round(float(classic1_data.get("pv_current", 0.0)) + float(classic2_data.get("pv_current", 0.0)), 1),
             pv_dc_daily_kwh=pv_dc_daily,
             classic_bat_volts=bat_volts,

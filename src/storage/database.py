@@ -169,6 +169,7 @@ class Database:
         with self._get_connection() as conn:
             cur = conn.execute("""
                 SELECT timestamp, total_pv_power_watts, pv_dc_power_watts, pv_ac_power_watts,
+                       classic1_power_watts, classic2_power_watts,
                        battery_power_watts, battery_soc, load_power_watts, grid_gen_power_watts,
                        battery_volts
                 FROM snapshots

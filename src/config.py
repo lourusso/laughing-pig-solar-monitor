@@ -92,6 +92,8 @@ def load_config(config_path: Optional[str] = None) -> AppConfig:
     # Check environment variable overrides
     if os.getenv("LPSM_CLASSIC_HOST"):
         config.modbus.classic.host = os.getenv("LPSM_CLASSIC_HOST")
+    if os.getenv("LPSM_CLASSIC2_HOST"):
+        config.modbus.classic2.host = os.getenv("LPSM_CLASSIC2_HOST")
     if os.getenv("LPSM_WEBBOX_HOST"):
         config.modbus.sunny_webbox.host = os.getenv("LPSM_WEBBOX_HOST")
     if os.getenv("LPSM_MQTT_BROKER"):

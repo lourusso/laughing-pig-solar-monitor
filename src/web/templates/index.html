@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Laughing Pig Solar Monitor</title>
-  <link rel="stylesheet" href="/static/css/style.css?v=1.1.7">
+  <link rel="stylesheet" href="/static/css/style.css?v=1.2.0">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
@@ -90,7 +90,7 @@
         </div>
         <div id="classic1-power" class="stat-main">-- W</div>
         <div class="stat-footer">
-          <span>PV: <span id="classic1-pv-v">-- V</span></span>
+          <span>PV: <span id="classic1-pv-v">-- V</span> <span id="classic1-pv-a" style="font-size:0.75rem; color:#64748b;">(-- A)</span></span>
           <span>Bat: <span id="classic1-bat-v">-- V</span></span>
           <span>Daily: <span id="classic1-daily">-- kWh</span></span>
         </div>
@@ -100,11 +100,11 @@
       <div class="stat-card clickable-card" onclick="window.location.href='/device/classic-2'" title="Click to inspect MidNite Classic #2 registers & telemetry (192.168.42.130)">
         <div class="stat-header">
           <span class="stat-title">MIDNITE CLASSIC #2 (DC PV) <span class="card-arrow">↗</span></span>
-          <span id="classic2-stage" class="stat-badge">OFFLINE</span>
+          <span id="classic2-stage" class="stat-badge">--</span>
         </div>
         <div id="classic2-power" class="stat-main">-- W</div>
         <div class="stat-footer">
-          <span>PV: <span id="classic2-pv-v">-- V</span></span>
+          <span>PV: <span id="classic2-pv-v">-- V</span> <span id="classic2-pv-a" style="font-size:0.75rem; color:#64748b;">(-- A)</span></span>
           <span>Bat: <span id="classic2-bat-v">-- V</span></span>
           <span>Daily: <span id="classic2-daily">-- kWh</span></span>
         </div>
@@ -147,6 +147,6 @@
     </section>
   </main>
 
-  <script src="/static/js/dashboard.js?v=1.1.6"></script>
+  <script src="/static/js/dashboard.js?v=1.2.0"></script>
 </body>
 </html>
