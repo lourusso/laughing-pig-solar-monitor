@@ -48,10 +48,11 @@
         </div>
 
         <!-- Energy Storage Node -->
-        <div class="flow-node battery" onclick="window.location.href='/device/sunny-island'" style="cursor: pointer;" title="Click to view Battery & Inverter details">
+        <div class="flow-node battery" onclick="window.location.href='/device/battery'" style="cursor: pointer;" title="Click to view Discover Battery (LYNK II) telemetry">
           <div class="node-icon">🔋</div>
           <div class="node-label">Discover Battery <span class="card-arrow">↗</span></div>
           <div id="battery-soc" class="node-value" style="color: var(--battery-color);">--%</div>
+          <div id="battery-va" class="node-subtext" style="font-weight: 600; font-size: 0.85rem; color: var(--text-main); margin-top: 2px;">-- V | -- A</div>
           <div id="battery-sub" class="node-subtext">Monitoring...</div>
         </div>
 
@@ -73,15 +74,15 @@
     <!-- Key Metrics Grid -->
     <section class="metrics-grid">
       <!-- Battery Card -->
-      <div class="stat-card clickable-card" onclick="window.location.href='/device/sunny-island'" title="Click to inspect all Sunny Island & Battery telemetry">
+      <div class="stat-card clickable-card" onclick="window.location.href='/device/battery'" title="Click to inspect Discover Battery (LYNK II) telemetry">
         <div class="stat-header">
-          <span class="stat-title">BATTERY STORAGE (ESS) <span class="card-arrow">↗</span></span>
+          <span class="stat-title">DISCOVER AES BATTERY <span class="card-arrow">↗</span></span>
           <span id="battery-volts" class="stat-badge">-- V</span>
         </div>
         <div id="battery-details" class="stat-main">-- W</div>
         <div class="stat-footer">
-          <span>Sunny Island 6048</span>
           <span>Discover Lithium</span>
+          <span>LYNK II CAN</span>
         </div>
       </div>
 

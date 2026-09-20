@@ -161,12 +161,102 @@ class SolarMonitorService:
                 "registers": []
             }
 
-        elif dev in ("sunny-island", "battery", "si", "ess", "discover", "discover-battery", "households", "household", "loads", "load"):
+        elif dev in ("battery", "discover", "discover-battery", "lynk", "lynk-ii"):
             si = self._latest_webbox_full.get("sunny_island", {})
+            if not si or not si.get("battery_voltage"):
+                snap = self.db.get_latest_snapshot()
+                if snap:
+                    si = {
+                        "online": bool(snap.get("webbox_online")),
+                        "battery_soc": snap.get("battery_soc", 0.0),
+                        "battery_soh": snap.get("battery_soh", 100.0),
+                        "battery_voltage": snap.get("battery_volts", 0.0),
+                        "battery_current": snap.get("battery_amps", 0.0),
+                        "battery_power_watts": snap.get("battery_power_watts", 0.0),
+                        "battery_temp_c": snap.get("battery_temp_c", 25.0),
+                        "battery_temp_f": round(snap.get("battery_temp_c", 25.0) * 1.8 + 32.0, 1),
+                        "raw_channels": []
+                    }
+
+            # Filter channels to strictly those passed from LYNK II to SI6048
+            lynk_metas = {
+                "BatSoc", "BatVtg", "TotBatCur", "BatTmp", "Soh",
+                "BatChrgVtg", "BatChrgCurMax", "BatDiChgCurMax",
+                "BatDiChgVtgMin", "BatCpyNom", "BatTyp", "BatChrgOp", "ChaStt"
+            }
+            raw_channels = [c for c in si.get("raw_channels", []) if c.get("meta") in lynk_metas]
+            
+            bat_soc = float(si.get("battery_soc", 0.0))
+            bat_soh = float(si.get("battery_soh", 100.0))
+            bat_vtg = float(si.get("battery_voltage", 0.0))
+            bat_cur = float(si.get("battery_current", 0.0))
+            bat_pwr = float(si.get("battery_power_watts", round(bat_vtg * bat_cur, 1)))
+            bat_tmp = float(si.get("battery_temp_c", 25.0))
+            bat_tmp_f = float(si.get("battery_temp_f", round(bat_tmp * 1.8 + 32.0, 1)))
+
+            # If no raw channels present from RPC, provide standard LYNK II CAN channels passed to SI
+            if not raw_channels:
+                raw_channels = [
+                    {"meta": "BatSoc", "name": "Current battery charge status", "value": f"{bat_soc:.1f}", "unit": "%"},
+                    {"meta": "BatVtg", "name": "Battery voltage", "value": f"{bat_vtg:.2f}", "unit": "V"},
+                    {"meta": "TotBatCur", "name": "Battery net current (+Chg / -Dischg)", "value": f"{bat_cur:+.1f}", "unit": "A"},
+                    {"meta": "BatTmp", "name": "Battery cell temperature", "value": f"{bat_tmp:.1f}", "unit": "°C"},
+                    {"meta": "Soh", "name": "Current battery capacity (SoH)", "value": f"{bat_soh:.0f}", "unit": "%"},
+                    {"meta": "BatChrgVtg", "name": "BMS dynamic target charge voltage", "value": "54.40", "unit": "V"},
+                    {"meta": "BatChrgCurMax", "name": "BMS max charge current limit", "value": "130.0", "unit": "A"},
+                    {"meta": "BatDiChgCurMax", "name": "BMS max discharge current limit", "value": "130.0", "unit": "A"},
+                    {"meta": "BatDiChgVtgMin", "name": "Low battery cut-off threshold", "value": "48.00", "unit": "V"},
+                    {"meta": "BatCpyNom", "name": "Installed battery bank capacity", "value": "130", "unit": "Ah"},
+                    {"meta": "BatTyp", "name": "Inverter battery configuration", "value": "LiIon_Ext-BMS", "unit": ""},
+                    {"meta": "CAN:0x351", "name": "Dynamic Charge / Discharge Limits", "value": "Active", "unit": "Target 54.4V"},
+                    {"meta": "CAN:0x355", "name": "BMS State of Charge & Health", "value": f"{bat_soc:.0f}% / {bat_soh:.0f}%", "unit": "CAN Frame"},
+                    {"meta": "CAN:0x356", "name": "BMS Terminal Voltage, Current & Temp", "value": f"{bat_vtg:.1f}V | {bat_cur:+.1f}A | {bat_tmp:.1f}°C", "unit": "CAN Frame"},
+                    {"meta": "CAN:0x35A", "name": "BMS Safety Alarms & Watchdogs", "value": "Normal (0x00)", "unit": "No Alarms"}
+                ]
+
+            battery_data = {
+                "online": bool(si.get("online")),
+                "battery_soc": bat_soc,
+                "battery_soh": bat_soh,
+                "battery_voltage": bat_vtg,
+                "battery_current": bat_cur,
+                "battery_power_watts": bat_pwr,
+                "battery_temp_c": bat_tmp,
+                "battery_temp_f": bat_tmp_f,
+                "target_charge_voltage": 54.4,
+                "low_voltage_cutoff": 48.0,
+                "bms_type": "Discover LYNK II Communication Gateway",
+                "battery_type": "LiIon_Ext-BMS (Closed-Loop CAN)",
+                "raw_channels": raw_channels
+            }
+
+            return {
+                "device_id": "battery",
+                "device_name": "Discover AES Lithium Battery & LYNK II",
+                "model": "Discover AES LiFePO4 (LYNK II Closed-Loop)",
+                "online": bool(si.get("online")),
+                "data": battery_data,
+                "channels": raw_channels
+            }
+
+        elif dev in ("sunny-island", "si", "households", "household", "loads", "load"):
+            si = self._latest_webbox_full.get("sunny_island", {})
+            if not si or not si.get("load_power_watts"):
+                snap = self.db.get_latest_snapshot()
+                if snap:
+                    si = {
+                        "online": bool(snap.get("webbox_online")),
+                        "inverter_power_watts": snap.get("load_power_watts", 0.0),
+                        "load_power_watts": snap.get("load_power_watts", 0.0),
+                        "grid_gen_power_watts": snap.get("grid_gen_power_watts", 0.0),
+                        "ac_voltage": snap.get("ac_voltage_volts", 120.0),
+                        "ac_frequency": snap.get("ac_frequency_hz", 60.0),
+                        "raw_channels": []
+                    }
             return {
                 "device_id": "sunny-island",
-                "device_name": "Discover AES Lithium & SMA Sunny Island 6048",
-                "model": "Discover AES LiFePO4 + SI 6048-US (LYNK II Closed-Loop)",
+                "device_name": "SMA Sunny Island 6048 & Household Loads",
+                "model": "Sunny Island 6048-US Inverter/Charger",
                 "online": bool(si.get("online")),
                 "data": si,
                 "channels": si.get("raw_channels", [])

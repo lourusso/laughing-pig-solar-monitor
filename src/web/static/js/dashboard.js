@@ -19,15 +19,20 @@ async function fetchLiveTelemetry() {
     const soc = Math.round(data.battery_soc || 0);
     const batVolts = (data.battery_volts || 0).toFixed(1);
     const batWatts = Math.round(data.battery_power_watts || 0);
-    const batAmps = (data.battery_amps || 0).toFixed(1);
+    const rawAmps = (data.battery_amps || 0);
+    const signAmps = (rawAmps > 0 ? "+" : "") + rawAmps.toFixed(1);
     
     const batSoc = document.getElementById("battery-soc");
+    const batVa = document.getElementById("battery-va");
     const batDetails = document.getElementById("battery-details");
     const batSub = document.getElementById("battery-sub");
     
     batSoc.textContent = `${soc}%`;
+    if (batVa) {
+      batVa.textContent = `${batVolts} V | ${signAmps} A`;
+    }
     document.getElementById("battery-volts").textContent = `${batVolts} V`;
-    batDetails.textContent = `${batWatts > 0 ? "+" : ""}${batWatts} W (${batAmps} A)`;
+    batDetails.textContent = `${batWatts > 0 ? "+" : ""}${batWatts} W (${signAmps} A)`;
     
     if (batWatts > 10) {
       // Charging: Green

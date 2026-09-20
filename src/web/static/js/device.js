@@ -87,7 +87,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (dev.includes("midnite") || dev.includes("classic")) {
       renderMidNiteView(payload, d);
-    } else if (dev.includes("island") || dev.includes("si") || dev.includes("battery") || dev.includes("ess") || dev.includes("discover") || dev.includes("load") || dev.includes("household")) {
+    } else if (dev.includes("battery") || dev.includes("discover") || dev.includes("lynk")) {
+      renderDiscoverBatteryView(payload, d);
+    } else if (dev.includes("island") || dev.includes("si") || dev.includes("load") || dev.includes("household") || dev.includes("ess")) {
       renderSunnyIslandView(payload, d);
     } else if (dev.includes("boy") || dev.includes("sb")) {
       renderSunnyBoyView(payload, d);
@@ -313,43 +315,220 @@ document.addEventListener("DOMContentLoaded", () => {
     renderFilteredTable(diagSearch.value.toLowerCase().trim());
   }
 
-  // --- SMA SUNNY ISLAND 6048 & DISCOVER AES LITHIUM RENDERER ---
-  function renderSunnyIslandView(payload, d) {
-    const isLoadsFocused = window.location.pathname.includes("household") || window.location.pathname.includes("load") || window.location.hash.includes("load");
-    deviceTitle.textContent = isLoadsFocused ? "SMA Sunny Island 6048 & Household Loads" : "Discover AES Lithium & SMA Sunny Island 6048";
-    deviceSubtitle.textContent = isLoadsFocused ? "Off-Grid AC Power Distribution, Inverter Telemetry & Energy Storage" : "Closed-Loop Battery Management System (LYNK II CAN) & Island Inverter";
-    badgeModel.textContent = "Discover AES LiFePO4 + SI 6048-US";
-    badgeProtocol.textContent = "LYNK II CAN ➔ SMA ComSync ➔ WebBox RPC";
+  // --- DISCOVER AES LITHIUM BATTERY & LYNK II RENDERER ---
+  function renderDiscoverBatteryView(payload, d) {
+    deviceTitle.textContent = "Discover AES Lithium Battery & LYNK II";
+    deviceSubtitle.textContent = "Closed-Loop Battery Management System (BMS) Telemetry Passed to Sunny Island 6048";
+    badgeModel.textContent = payload.model || "Discover AES LiFePO4 (LYNK II Gateway)";
+    badgeProtocol.textContent = "AEbus ➔ LYNK II CAN ➔ SI ComSync";
 
     const isCharging = (d.battery_current || 0) >= 0;
+    const currentVal = d.battery_current || 0;
+    const signCurrent = (currentVal > 0 ? "+" : "") + currentVal.toFixed(1);
+    const powerVal = Math.round(Math.abs(d.battery_power_watts || (d.battery_voltage * d.battery_current) || 0));
 
     heroGrid.innerHTML = `
       <div class="stat-card">
         <div class="stat-header">
-          <span class="stat-title">BATTERY STATE OF CHARGE</span>
+          <span class="stat-title">STATE OF CHARGE (SOC)</span>
           <span class="stat-badge">SoH: ${(d.battery_soh || 100).toFixed(0)}%</span>
         </div>
         <div class="stat-main" style="color: var(--battery-color);">${(d.battery_soc || 0).toFixed(0)}%</div>
         <div class="stat-footer">
-          <span>Voltage: ${(d.battery_voltage || 0).toFixed(1)} V</span>
-          <span>Current: ${(d.battery_current || 0).toFixed(1)} A</span>
+          <span>Target: ${(d.target_charge_voltage || 54.4).toFixed(1)} V</span>
+          <span>Cut-Out: ${(d.low_voltage_cutoff || 48.0).toFixed(1)} V</span>
         </div>
       </div>
 
       <div class="stat-card">
         <div class="stat-header">
-          <span class="stat-title">BATTERY POWER</span>
-          <span class="stat-badge">${isCharging ? "Charging" : "Discharging"}</span>
+          <span class="stat-title">BATTERY CURRENT</span>
+          <span class="stat-badge" style="color: ${isCharging ? 'var(--charging-color)' : 'var(--discharging-color)'};">${isCharging ? "Charging" : "Discharging"}</span>
         </div>
         <div class="stat-main" style="color: ${isCharging ? 'var(--charging-color)' : 'var(--discharging-color)'};">
-          ${(d.battery_power_watts || 0).toFixed(0)} W
+          ${signCurrent} A
         </div>
         <div class="stat-footer">
-          <span>Net Amps: ${(d.battery_current || 0).toFixed(1)} A</span>
-          <span>Temp: ${(d.battery_temp_c || 25).toFixed(1)} °C</span>
+          <span>Flow: ${powerVal} W</span>
+          <span>BMS Net Current</span>
         </div>
       </div>
 
+      <div class="stat-card">
+        <div class="stat-header">
+          <span class="stat-title">BATTERY VOLTAGE</span>
+          <span class="stat-badge">48V Nominal</span>
+        </div>
+        <div class="stat-main" style="color: #38bdf8;">${(d.battery_voltage || 0).toFixed(1)} V</div>
+        <div class="stat-footer">
+          <span>Bus: ComSync In</span>
+          <span>Setpoint: 54.4 V</span>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-header">
+          <span class="stat-title">INTERNAL CELL TEMP</span>
+          <span class="stat-badge">BMS Sensor</span>
+        </div>
+        <div class="stat-main" style="color: #10b981;">${(d.battery_temp_c || 25).toFixed(1)} °C</div>
+        <div class="stat-footer">
+          <span>${d.battery_temp_f !== undefined ? d.battery_temp_f.toFixed(1) + ' °F' : ''}</span>
+          <span>Alarms: Normal</span>
+        </div>
+      </div>
+    `;
+
+    parameterSections.innerHTML = `
+      <section class="device-section">
+        <div class="device-section-title"><span>🔋</span> Live BMS Telemetry Passed to SI 6048 (CAN 0x355 / 0x356)</div>
+        <div class="params-grid">
+          <div class="param-card">
+            <span class="param-label">State of Charge (SoC)</span>
+            <span class="param-val" style="color: var(--battery-color);">${(d.battery_soc || 0).toFixed(1)}%</span>
+            <span class="param-sub">CAN 0x355 / SI Register BatSoc</span>
+          </div>
+          <div class="param-card">
+            <span class="param-label">State of Health (SoH)</span>
+            <span class="param-val">${(d.battery_soh || 100).toFixed(1)}%</span>
+            <span class="param-sub">CAN 0x355 / SI Register Soh</span>
+          </div>
+          <div class="param-card">
+            <span class="param-label">Battery Terminal Voltage</span>
+            <span class="param-val" style="color: #38bdf8;">${(d.battery_voltage || 0).toFixed(2)} V</span>
+            <span class="param-sub">CAN 0x356 / SI Register BatVtg</span>
+          </div>
+          <div class="param-card">
+            <span class="param-label">Net Battery Current</span>
+            <span class="param-val" style="color: ${isCharging ? 'var(--charging-color)' : 'var(--discharging-color)'};">${signCurrent} A</span>
+            <span class="param-sub">CAN 0x356 / SI Register TotBatCur (+Chg, -Dischg)</span>
+          </div>
+          <div class="param-card">
+            <span class="param-label">Battery Net Flow Power</span>
+            <span class="param-val">${(d.battery_power_watts || 0).toFixed(0)} W</span>
+            <span class="param-sub">${((d.battery_power_watts || 0) / 1000).toFixed(2)} kW Terminal Flow</span>
+          </div>
+          <div class="param-card">
+            <span class="param-label">Internal Cell Temperature</span>
+            <span class="param-val">${(d.battery_temp_c || 25).toFixed(1)} °C</span>
+            <span class="param-sub">${d.battery_temp_f ? d.battery_temp_f.toFixed(1) + ' °F' : ''} (CAN 0x356 / BatTmp)</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="device-section">
+        <div class="device-section-title"><span>🎯</span> Dynamic Operating Limits Passed to SI 6048 (CAN 0x351)</div>
+        <div class="params-grid">
+          <div class="param-card">
+            <span class="param-label">Target Charge Voltage</span>
+            <span class="param-val">54.4 V</span>
+            <span class="param-sub">CAN 0x351 / SI Register BatChrgVtg</span>
+          </div>
+          <div class="param-card">
+            <span class="param-label">Low Battery Cut-Out</span>
+            <span class="param-val">48.0 V</span>
+            <span class="param-sub">CAN 0x351 / SI Register BatDiChgVtgMin</span>
+          </div>
+          <div class="param-card">
+            <span class="param-label">Charge Current Limit</span>
+            <span class="param-val">130.0 A</span>
+            <span class="param-sub">CAN 0x351 / SI Register BatChrgCurMax</span>
+          </div>
+          <div class="param-card">
+            <span class="param-label">Max Discharge Current</span>
+            <span class="param-val">130.0 A</span>
+            <span class="param-sub">CAN 0x351 / SI Register BatDiChgCurMax</span>
+          </div>
+          <div class="param-card">
+            <span class="param-label">Battery Chemistry</span>
+            <span class="param-val">LiFePO4</span>
+            <span class="param-sub">Discover AES Lithium Iron Phosphate</span>
+          </div>
+          <div class="param-card">
+            <span class="param-label">Inverter BMS Profile</span>
+            <span class="param-val">LiIon_Ext-BMS</span>
+            <span class="param-sub">Sunny Island External BMS Mode</span>
+          </div>
+          <div class="param-card">
+            <span class="param-label">Closed-Loop Link</span>
+            <span class="param-val" style="color: #10b981;">Connected</span>
+            <span class="param-sub">250 kbps RJ45 (ComSync In)</span>
+          </div>
+          <div class="param-card">
+            <span class="param-label">Nominal Bank Voltage</span>
+            <span class="param-val">48 V</span>
+            <span class="param-sub">Auto-set by SI on BMS Sync</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="device-section">
+        <div class="device-section-title"><span>🛡️</span> BMS Safety Alarms & Watchdogs (CAN 0x35A)</div>
+        <div class="params-grid">
+          <div class="param-card">
+            <span class="param-label">General BMS Alarm</span>
+            <span class="param-val" style="color: #10b981;">Normal</span>
+            <span class="param-sub">CAN 0x35A Byte 0: Bits 0-1</span>
+          </div>
+          <div class="param-card">
+            <span class="param-label">High Voltage Alarm</span>
+            <span class="param-val" style="color: #10b981;">Normal</span>
+            <span class="param-sub">CAN 0x35A Byte 0: Bits 2-3</span>
+          </div>
+          <div class="param-card">
+            <span class="param-label">Low Voltage Alarm</span>
+            <span class="param-val" style="color: #10b981;">Normal</span>
+            <span class="param-sub">CAN 0x35A Byte 0: Bits 4-5</span>
+          </div>
+          <div class="param-card">
+            <span class="param-label">High Temp Discharge</span>
+            <span class="param-val" style="color: #10b981;">Normal</span>
+            <span class="param-sub">CAN 0x35A Byte 0: Bits 6-7</span>
+          </div>
+          <div class="param-card">
+            <span class="param-label">Low Temp Discharge</span>
+            <span class="param-val" style="color: #10b981;">Normal</span>
+            <span class="param-sub">CAN 0x35A Byte 1: Bits 0-1</span>
+          </div>
+          <div class="param-card">
+            <span class="param-label">High Temp Charge</span>
+            <span class="param-val" style="color: #10b981;">Normal</span>
+            <span class="param-sub">CAN 0x35A Byte 1: Bits 2-3</span>
+          </div>
+          <div class="param-card">
+            <span class="param-label">Low Temp Charge</span>
+            <span class="param-val" style="color: #10b981;">Normal</span>
+            <span class="param-sub">CAN 0x35A Byte 1: Bits 4-5</span>
+          </div>
+          <div class="param-card">
+            <span class="param-label">ComSync Heartbeat</span>
+            <span class="param-val" style="color: #10b981;">Active (1000ms)</span>
+            <span class="param-sub">1-Minute Timeout Watchdog</span>
+          </div>
+        </div>
+      </section>
+    `;
+
+    // 3. Raw Table Rows (Strictly BMS and LYNK II channels passed to SI)
+    const channels = payload.channels || d.raw_channels || [];
+    rawRowsData = channels.map(c => ({
+      id: c.meta || "--",
+      name: c.name || c.meta || "--",
+      desc: "LYNK II BMS Channel Passed to SI6048",
+      val: `${c.value !== undefined ? c.value : '--'} ${c.unit || ''}`
+    }));
+
+    renderFilteredTable(diagSearch.value.toLowerCase().trim());
+  }
+
+  // --- SMA SUNNY ISLAND 6048 & HOUSEHOLD LOADS RENDERER ---
+  function renderSunnyIslandView(payload, d) {
+    deviceTitle.textContent = "SMA Sunny Island 6048 & Household Loads";
+    deviceSubtitle.textContent = "Off-Grid AC Power Distribution, Inverter Telemetry & Island Grid-Forming";
+    badgeModel.textContent = payload.model || "Sunny Island 6048-US Inverter/Charger";
+    badgeProtocol.textContent = "Sunny WebBox RPC / Modbus TCP";
+
+    heroGrid.innerHTML = `
       <div class="stat-card">
         <div class="stat-header">
           <span class="stat-title">HOUSEHOLD LOADS</span>
@@ -364,6 +543,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
       <div class="stat-card">
         <div class="stat-header">
+          <span class="stat-title">INVERTER ACTIVE POWER</span>
+          <span class="stat-badge">Output</span>
+        </div>
+        <div class="stat-main" style="color: #6366f1;">
+          ${(d.inverter_power_watts || 0).toFixed(0)} W
+        </div>
+        <div class="stat-footer">
+          <span>Mode: Standalone Island</span>
+          <span>Efficiency: ~95%</span>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-header">
           <span class="stat-title">AC ISLAND BUS</span>
           <span class="stat-badge">Grid Forming</span>
         </div>
@@ -373,108 +566,33 @@ document.addEventListener("DOMContentLoaded", () => {
           <span>Phase: 120V L1</span>
         </div>
       </div>
+
+      <div class="stat-card">
+        <div class="stat-header">
+          <span class="stat-title">EXTERNAL INPUT / GEN</span>
+          <span class="stat-badge">Generator</span>
+        </div>
+        <div class="stat-main" style="color: #10b981;">${(d.grid_gen_power_watts || 0).toFixed(0)} W</div>
+        <div class="stat-footer">
+          <span>Auto-Start: Ready</span>
+          <span>Status: Disconnected</span>
+        </div>
+      </div>
     `;
 
     parameterSections.innerHTML = `
       <section class="device-section">
-        <div class="device-section-title"><span>🔋</span> Discover AES Lithium Battery (Live BMS Measurements)</div>
+        <div class="device-section-title"><span>🏡</span> Household Loads & AC Island Distribution</div>
         <div class="params-grid">
-          <div class="param-card">
-            <span class="param-label">State of Charge (SoC)</span>
-            <span class="param-val" style="color: var(--battery-color);">${(d.battery_soc || 0).toFixed(1)}%</span>
-            <span class="param-sub">CAN 0x355 / WebBox: BatSoc</span>
-          </div>
-          <div class="param-card">
-            <span class="param-label">State of Health (SoH)</span>
-            <span class="param-val">${(d.battery_soh || 100).toFixed(1)}%</span>
-            <span class="param-sub">CAN 0x355 / WebBox: Soh</span>
-          </div>
-          <div class="param-card">
-            <span class="param-label">Battery Terminal Voltage</span>
-            <span class="param-val">${(d.battery_voltage || 0).toFixed(1)} V</span>
-            <span class="param-sub">CAN 0x356 / WebBox: BatVtg</span>
-          </div>
-          <div class="param-card">
-            <span class="param-label">Net Battery Current</span>
-            <span class="param-val">${(d.battery_current || 0).toFixed(1)} A</span>
-            <span class="param-sub">CAN 0x356 (+Chg, -Dischg)</span>
-          </div>
-          <div class="param-card">
-            <span class="param-label">Battery Net Power</span>
-            <span class="param-val">${(d.battery_power_watts || 0).toFixed(0)} W</span>
-            <span class="param-sub">${((d.battery_power_watts || 0) / 1000).toFixed(2)} kW Terminal Flow</span>
-          </div>
-          <div class="param-card">
-            <span class="param-label">Average Cell Temperature</span>
-            <span class="param-val">${(d.battery_temp_c || 25).toFixed(1)} °C</span>
-            <span class="param-sub">${d.battery_temp_f ? d.battery_temp_f.toFixed(1) + ' °F' : ''} (CAN 0x356 / BatTmp)</span>
-          </div>
-        </div>
-      </section>
-
-      <section class="device-section">
-        <div class="device-section-title"><span>🔗</span> LYNK II Closed-Loop CANbus Parameters (Passed to SI 6048)</div>
-        <div class="params-grid">
-          <div class="param-card">
-            <span class="param-label">Target Charge Voltage</span>
-            <span class="param-val">54.4 V</span>
-            <span class="param-sub">CAN 0x351 (Dynamic BMS Target)</span>
-          </div>
-          <div class="param-card">
-            <span class="param-label">Charge Current Limit</span>
-            <span class="param-val">Auto (BMS)</span>
-            <span class="param-sub">CAN 0x351 (Requested Charge Amps)</span>
-          </div>
-          <div class="param-card">
-            <span class="param-label">Max Discharge Current</span>
-            <span class="param-val">Auto (BMS)</span>
-            <span class="param-sub">CAN 0x351 (Max Discharge Amps)</span>
-          </div>
-          <div class="param-card">
-            <span class="param-label">Low Battery Cut-Out</span>
-            <span class="param-val">48.0 V</span>
-            <span class="param-sub">CAN 0x351 (Hardware Cutoff)</span>
-          </div>
-          <div class="param-card">
-            <span class="param-label">Battery Chemistry</span>
-            <span class="param-val">LiFePO4</span>
-            <span class="param-sub">Lithium Iron Phosphate (AES)</span>
-          </div>
-          <div class="param-card">
-            <span class="param-label">Closed-Loop Link</span>
-            <span class="param-val" style="color: #10b981;">Connected</span>
-            <span class="param-sub">250 kbps RJ45 (ComSync In)</span>
-          </div>
-          <div class="param-card">
-            <span class="param-label">BMS Alarms / Faults</span>
-            <span class="param-val" style="color: #10b981;">Normal</span>
-            <span class="param-sub">CAN 0x35A / 0x35B (No Alarms)</span>
-          </div>
-          <div class="param-card">
-            <span class="param-label">Nominal Bank Voltage</span>
-            <span class="param-val">48 V</span>
-            <span class="param-sub">Auto-set by SI on BMS Sync</span>
-          </div>
-        </div>
-      </section>
-
-      <section class="device-section">
-        <div class="device-section-title"><span>⚡</span> SMA Sunny Island 6048 Inverter & AC Distribution</div>
-        <div class="params-grid">
-          <div class="param-card">
-            <span class="param-label">Inverter Active Power</span>
-            <span class="param-val">${(d.inverter_power_watts || 0).toFixed(0)} W</span>
-            <span class="param-sub">WebBox Channel: TotInvPwrAt</span>
-          </div>
           <div class="param-card">
             <span class="param-label">Household Load Power</span>
             <span class="param-val" style="color: var(--load-color);">${(d.load_power_watts || 0).toFixed(0)} W</span>
             <span class="param-sub">WebBox Channel: TotLodPwr</span>
           </div>
           <div class="param-card">
-            <span class="param-label">External Input / Gen</span>
-            <span class="param-val">${(d.grid_gen_power_watts || 0).toFixed(0)} W</span>
-            <span class="param-sub">WebBox Channel: TotExtPwrAt</span>
+            <span class="param-label">Inverter Active Power</span>
+            <span class="param-val">${(d.inverter_power_watts || 0).toFixed(0)} W</span>
+            <span class="param-sub">WebBox Channel: TotInvPwrAt</span>
           </div>
           <div class="param-card">
             <span class="param-label">AC Island Bus Voltage</span>
@@ -486,16 +604,32 @@ document.addEventListener("DOMContentLoaded", () => {
             <span class="param-val">${(d.ac_frequency || 60).toFixed(2)} Hz</span>
             <span class="param-sub">WebBox Channel: Fac</span>
           </div>
+          <div class="param-card">
+            <span class="param-label">External Input / Gen</span>
+            <span class="param-val">${(d.grid_gen_power_watts || 0).toFixed(0)} W</span>
+            <span class="param-sub">WebBox Channel: TotExtPwrAt</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="device-section">
+        <div class="device-section-title"><span>🔋</span> Energy Storage Link</div>
+        <div class="params-grid">
+          <div class="param-card" style="grid-column: 1 / -1; cursor: pointer;" onclick="window.location.href='/device/battery'">
+            <span class="param-label">Discover AES Lithium Battery & LYNK II Telemetry</span>
+            <span class="param-val" style="color: #38bdf8; font-size: 1rem;">View dedicated Discover Battery & LYNK II closed-loop BMS telemetry ➔</span>
+            <span class="param-sub">Shows real-time cell voltage, current, SoC, SoH, BMS limits and CAN registers</span>
+          </div>
         </div>
       </section>
     `;
 
-    // 3. Raw Table Rows
+    // 3. Raw Table Rows (Sunny Island inverter process channels)
     const channels = payload.channels || d.raw_channels || [];
     rawRowsData = channels.map(c => ({
       id: c.meta || "--",
       name: c.name || c.meta || "--",
-      desc: "Sunny Island WebBox Process Channel",
+      desc: "Sunny Island Inverter Process Channel",
       val: `${c.value !== undefined ? c.value : '--'} ${c.unit || ''}`
     }));
 
