@@ -1,0 +1,46 @@
+system:
+  name: "Laughing Pig Solar"
+  poll_interval_seconds: 10
+  log_level: "INFO"
+
+modbus:
+  timeout_seconds: 3.0
+  # MidNite Solar Classic MPPT Charge Controller (DC PV)
+  classic:
+    enabled: true
+    host: "192.168.42.129"
+    port: 502
+    unit_id: 1
+
+  # SMA Sunny WebBox (Gateway for Sunny Island & Sunny Boy)
+  sunny_webbox:
+    enabled: true
+    host: "192.168.42.127"
+    port: 502
+    # Optional RPC fallback port / protocol
+    rpc_enabled: true
+    rpc_port: 80
+    units:
+      webbox: 1
+      sunny_island: 2
+      sunny_boy: 4
+    devices:
+      sunny_island_key: "SI6048UM:1260044199"
+      sunny_boy_key: "WR40U08E:2000702586"
+
+mqtt:
+  enabled: true
+  broker: "192.168.42.184"
+  port: 1883
+  username: ""
+  password: ""
+  topic_prefix: "laughing_pig_solar"
+  homeassistant_discovery: true
+
+storage:
+  db_path: "data/solar.db"
+  retention_days: 90
+
+web:
+  host: "0.0.0.0"
+  port: 8050

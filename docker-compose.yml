@@ -1,0 +1,24 @@
+version: "3.8"
+
+services:
+  solar-monitor:
+    container_name: laughing-pig-solar-monitor
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: laughing-pig-solar-monitor:latest
+    restart: unless-stopped
+    ports:
+      - "8050:8050"
+    volumes:
+      - ./data:/app/data
+      - ./config:/app/config
+    environment:
+      - TZ=America/Los_Angeles
+      - PYTHONUNBUFFERED=1
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8050/api/live"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
