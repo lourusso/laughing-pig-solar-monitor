@@ -73,6 +73,7 @@ class Database:
                 ("classic2_bat_volts", "REAL DEFAULT 0.0"),
                 ("classic2_stage", "TEXT DEFAULT 'OFFLINE'"),
                 ("classic2_online", "INTEGER DEFAULT 0"),
+                ("sunnyboy_online", "INTEGER DEFAULT 0"),
             ]
             for col_name, col_def in classic_cols:
                 try:
@@ -107,8 +108,8 @@ class Database:
                 total_pv_power_watts, battery_soc, battery_soh, battery_volts,
                 battery_amps, battery_power_watts, battery_temp_c, load_power_watts,
                 grid_gen_power_watts, ac_frequency_hz, ac_voltage_volts,
-                classic_online, webbox_online, warnings
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                classic_online, webbox_online, sunnyboy_online, warnings
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
         """
         try:
             with self._get_connection() as conn:
@@ -150,6 +151,7 @@ class Database:
                     snapshot.ac_voltage_volts,
                     1 if snapshot.classic_online else 0,
                     1 if snapshot.webbox_online else 0,
+                    1 if snapshot.sunnyboy_online else 0,
                     snapshot.warnings
                 ))
                 conn.commit()

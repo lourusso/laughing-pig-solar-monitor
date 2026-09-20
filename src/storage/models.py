@@ -54,6 +54,7 @@ class TelemetrySnapshot(BaseModel):
     # System Health
     classic_online: bool = False
     webbox_online: bool = False
+    sunnyboy_online: bool = False
     warnings: Optional[str] = None
 
 class DailySummary(BaseModel):

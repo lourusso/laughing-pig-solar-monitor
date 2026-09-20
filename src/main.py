@@ -184,7 +184,8 @@ class SolarMonitorService:
             ac_voltage_volts=float(si_data.get("ac_voltage", 120.0)),
 
             classic_online=bool(classic1_data.get("online") or classic2_data.get("online")),
-            webbox_online=bool(webbox_data.get("online"))
+            webbox_online=bool(webbox_data.get("online")),
+            sunnyboy_online=bool(sb_data.get("online") or pv_ac > 0 or (bool(webbox_data.get("online")) and float(sb_data.get("energy_total_kwh", 0.0)) > 0))
         )
 
         # Store in SQLite

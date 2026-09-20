@@ -166,6 +166,19 @@ async function fetchLiveTelemetry() {
       }
     }
 
+    const pSunnyBoy = document.getElementById("pill-sunnyboy");
+    const sbOnline = Boolean(data.sunnyboy_online ?? (data.pv_ac_power_watts > 0 || (data.webbox_online && data.pv_ac_total_kwh > 0)));
+    if (pSunnyBoy) {
+      const lblSB = pSunnyBoy.querySelector("span:last-child");
+      if (sbOnline) {
+        pSunnyBoy.classList.add("online");
+        if (lblSB) lblSB.textContent = "SB4000: Online";
+      } else {
+        pSunnyBoy.classList.remove("online");
+        if (lblSB) lblSB.textContent = "SB4000: Offline";
+      }
+    }
+
   } catch (err) {
     console.error("Failed to fetch live telemetry:", err);
   }
