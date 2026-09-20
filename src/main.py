@@ -99,6 +99,7 @@ class SolarMonitorService:
             pv_dc_volts=float(classic_data.get("pv_voltage", 0.0)),
             pv_dc_amps=float(classic_data.get("pv_current", 0.0)),
             pv_dc_daily_kwh=float(classic_data.get("energy_today_kwh", 0.0)),
+            classic_bat_volts=float(classic_data.get("battery_voltage", 0.0)),
             charge_stage=str(classic_data.get("charge_stage", "RESTING")),
 
             pv_ac_power_watts=pv_ac,

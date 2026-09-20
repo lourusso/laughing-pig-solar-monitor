@@ -33,6 +33,7 @@ class Database:
                     pv_dc_volts REAL,
                     pv_dc_amps REAL,
                     pv_dc_daily_kwh REAL,
+                    classic_bat_volts REAL,
                     charge_stage TEXT,
                     pv_ac_power_watts REAL,
                     pv_ac_volts REAL,
@@ -55,6 +56,12 @@ class Database:
             """)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_snapshots_time ON snapshots (timestamp);")
 
+            # Migration for existing databases
+            try:
+                conn.execute("ALTER TABLE snapshots ADD COLUMN classic_bat_volts REAL DEFAULT 0.0;")
+            except sqlite3.OperationalError:
+                pass
+
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS daily_summaries (
                     date TEXT PRIMARY KEY,
@@ -73,12 +80,12 @@ class Database:
         sql = """
             INSERT OR REPLACE INTO snapshots (
                 timestamp, pv_dc_power_watts, pv_dc_volts, pv_dc_amps, pv_dc_daily_kwh,
-                charge_stage, pv_ac_power_watts, pv_ac_volts, pv_ac_total_kwh,
+                classic_bat_volts, charge_stage, pv_ac_power_watts, pv_ac_volts, pv_ac_total_kwh,
                 total_pv_power_watts, battery_soc, battery_soh, battery_volts,
                 battery_amps, battery_power_watts, battery_temp_c, load_power_watts,
                 grid_gen_power_watts, ac_frequency_hz, ac_voltage_volts,
                 classic_online, webbox_online, warnings
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
         """
         try:
             with self._get_connection() as conn:
@@ -88,6 +95,7 @@ class Database:
                     snapshot.pv_dc_volts,
                     snapshot.pv_dc_amps,
                     snapshot.pv_dc_daily_kwh,
+                    snapshot.classic_bat_volts,
                     snapshot.charge_stage,
                     snapshot.pv_ac_power_watts,
                     snapshot.pv_ac_volts,

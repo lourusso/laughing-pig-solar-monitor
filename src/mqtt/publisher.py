@@ -74,6 +74,7 @@ class MQTTPublisher:
             sub_topics = {
                 "solar/total_power": snapshot.total_pv_power_watts,
                 "solar/dc_power": snapshot.pv_dc_power_watts,
+                "solar/classic_bat_volts": snapshot.classic_bat_volts,
                 "solar/ac_power": snapshot.pv_ac_power_watts,
                 "battery/soc": snapshot.battery_soc,
                 "battery/volts": snapshot.battery_volts,

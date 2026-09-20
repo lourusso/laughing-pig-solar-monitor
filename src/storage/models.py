@@ -10,6 +10,7 @@ class TelemetrySnapshot(BaseModel):
     pv_dc_volts: float = 0.0
     pv_dc_amps: float = 0.0
     pv_dc_daily_kwh: float = 0.0
+    classic_bat_volts: float = 0.0     # MidNite Classic battery voltage
     charge_stage: str = "RESTING"
 
     pv_ac_power_watts: float = 0.0     # SMA Sunny Boy
