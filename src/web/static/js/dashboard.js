@@ -16,23 +16,29 @@ async function fetchLiveTelemetry() {
     document.getElementById("solar-breakdown").textContent = `DC: ${dcPv}W | AC: ${acPv}W`;
 
     // Battery Storage
-    const soc = Math.round(data.battery_soc || 0);
-    const batVolts = (data.battery_volts || 0).toFixed(1);
-    const batWatts = Math.round(data.battery_power_watts || 0);
-    const rawAmps = (data.battery_amps || 0);
-    const signAmps = (rawAmps > 0 ? "+" : "") + rawAmps.toFixed(1);
+    const soc = Math.round(data.battery_soc ?? 0);
+    const rawVolts = data.battery_volts ?? data.battery_voltage ?? 0;
+    const batVolts = Number(rawVolts).toFixed(1);
+    const batWatts = Math.round(data.battery_power_watts ?? 0);
+    let rawAmps = data.battery_amps ?? data.battery_current;
+    if ((rawAmps === undefined || rawAmps === null || rawAmps === 0) && batWatts !== 0 && Number(rawVolts) > 0) {
+      rawAmps = batWatts / Number(rawVolts);
+    }
+    const numAmps = Number(rawAmps || 0);
+    const signAmps = (numAmps > 0 ? "+" : "") + numAmps.toFixed(1);
     
     const batSoc = document.getElementById("battery-soc");
     const batVa = document.getElementById("battery-va");
     const batDetails = document.getElementById("battery-details");
     const batSub = document.getElementById("battery-sub");
     
-    batSoc.textContent = `${soc}%`;
+    if (batSoc) batSoc.textContent = `${soc}%`;
     if (batVa) {
       batVa.textContent = `${batVolts} V | ${signAmps} A`;
     }
-    document.getElementById("battery-volts").textContent = `${batVolts} V`;
-    batDetails.textContent = `${batWatts > 0 ? "+" : ""}${batWatts} W (${signAmps} A)`;
+    const batVoltsEl = document.getElementById("battery-volts");
+    if (batVoltsEl) batVoltsEl.textContent = `${batVolts} V`;
+    if (batDetails) batDetails.textContent = `${batWatts > 0 ? "+" : ""}${batWatts} W (${signAmps} A)`;
     
     if (batWatts > 10) {
       // Charging: Green

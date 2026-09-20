@@ -14,6 +14,14 @@ def create_app(db: Database, config: AppConfig, service: Optional[Any] = None) -
     static_dir = base_dir / "static"
     templates_dir = base_dir / "templates"
 
+    @app.middleware("http")
+    async def add_no_cache_headers(request, call_next):
+        response = await call_next(request)
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
+
     if static_dir.exists():
         app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
