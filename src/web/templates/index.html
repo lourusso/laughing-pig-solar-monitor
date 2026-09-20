@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Laughing Pig Solar Monitor</title>
-  <link rel="stylesheet" href="/static/css/style.css?v=1.1.3">
+  <link rel="stylesheet" href="/static/css/style.css?v=1.1.4">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
@@ -17,9 +17,13 @@
       </div>
     </div>
     <div class="header-status">
-      <div id="pill-classic" class="pill" onclick="window.location.href='/device/midnite'" style="cursor: pointer;" title="Click to view MidNite Classic details">
+      <div id="pill-classic" class="pill" onclick="window.location.href='/device/classic-1'" style="cursor: pointer;" title="Click to view MidNite Classic #1 details">
         <span class="pill-dot"></span>
-        <span>MidNite: Checking...</span>
+        <span>Classic #1: Checking...</span>
+      </div>
+      <div id="pill-classic2" class="pill" onclick="window.location.href='/device/classic-2'" style="cursor: pointer;" title="Click to view MidNite Classic #2 details (192.168.42.130)">
+        <span class="pill-dot"></span>
+        <span>Classic #2: Checking...</span>
       </div>
       <div id="pill-webbox" class="pill" onclick="window.location.href='/device/sunny-island'" style="cursor: pointer;" title="Click to view Sunny Island & WebBox details">
         <span class="pill-dot"></span>
@@ -72,30 +76,31 @@
 
     <!-- Key Metrics Grid -->
     <section class="metrics-grid">
-      <!-- Battery Card -->
-      <div class="stat-card clickable-card" onclick="window.location.href='/device/battery'" title="Click to inspect Discover Battery (LYNK II) telemetry">
+      <!-- MidNite Classic #1 Card -->
+      <div class="stat-card clickable-card" onclick="window.location.href='/device/classic-1'" title="Click to inspect MidNite Classic #1 registers & telemetry">
         <div class="stat-header">
-          <span class="stat-title">DISCOVER AES BATTERY <span class="card-arrow">↗</span></span>
-          <span id="battery-volts" class="stat-badge">-- V</span>
+          <span class="stat-title">MIDNITE CLASSIC #1 (DC PV) <span class="card-arrow">↗</span></span>
+          <span id="classic1-stage" class="stat-badge">--</span>
         </div>
-        <div id="battery-details" class="stat-main">-- W</div>
+        <div id="classic1-power" class="stat-main">-- W</div>
         <div class="stat-footer">
-          <span>Discover Lithium</span>
-          <span>LYNK II CAN</span>
+          <span>PV: <span id="classic1-pv-v">-- V</span></span>
+          <span>Bat: <span id="classic1-bat-v">-- V</span></span>
+          <span>Daily: <span id="classic1-daily">-- kWh</span></span>
         </div>
       </div>
 
-      <!-- MidNite Classic Card -->
-      <div class="stat-card clickable-card" onclick="window.location.href='/device/midnite'" title="Click to inspect all MidNite Classic registers & telemetry">
+      <!-- MidNite Classic #2 Card -->
+      <div class="stat-card clickable-card" onclick="window.location.href='/device/classic-2'" title="Click to inspect MidNite Classic #2 registers & telemetry (192.168.42.130)">
         <div class="stat-header">
-          <span class="stat-title">MIDNITE SOLAR CLASSIC <span class="card-arrow">↗</span></span>
-          <span id="midnite-stage" class="stat-badge">--</span>
+          <span class="stat-title">MIDNITE CLASSIC #2 (DC PV) <span class="card-arrow">↗</span></span>
+          <span id="classic2-stage" class="stat-badge">OFFLINE</span>
         </div>
-        <div id="midnite-power" class="stat-main">-- W</div>
+        <div id="classic2-power" class="stat-main">-- W</div>
         <div class="stat-footer">
-          <span>PV: <span id="midnite-pv-v">-- V</span></span>
-          <span>Bat: <span id="midnite-bat-v">-- V</span></span>
-          <span>Daily: <span id="midnite-daily">-- kWh</span></span>
+          <span>PV: <span id="classic2-pv-v">-- V</span></span>
+          <span>Bat: <span id="classic2-bat-v">-- V</span></span>
+          <span>Daily: <span id="classic2-daily">-- kWh</span></span>
         </div>
       </div>
 
@@ -136,6 +141,6 @@
     </section>
   </main>
 
-  <script src="/static/js/dashboard.js?v=1.1.3"></script>
+  <script src="/static/js/dashboard.js?v=1.1.4"></script>
 </body>
 </html>

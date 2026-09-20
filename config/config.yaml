@@ -5,10 +5,17 @@ system:
 
 modbus:
   timeout_seconds: 3.0
-  # MidNite Solar Classic MPPT Charge Controller (DC PV)
+  # MidNite Solar Classic MPPT Charge Controller #1 (DC PV)
   classic:
     enabled: true
     host: "192.168.42.129"
+    port: 502
+    unit_id: 1
+
+  # MidNite Solar Classic MPPT Charge Controller #2 (DC PV)
+  classic2:
+    enabled: true
+    host: "192.168.42.130"
     port: 502
     unit_id: 1
 

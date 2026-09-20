@@ -100,9 +100,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // --- MIDNITE SOLAR CLASSIC RENDERER ---
   function renderMidNiteView(payload, d) {
-    deviceTitle.textContent = "MidNite Solar Classic";
-    deviceSubtitle.textContent = "High-Voltage MPPT Charge Controller";
-    badgeModel.textContent = d.model_name || payload.model || "Classic 150/200/250";
+    const isClassic2 = (payload.device_id || deviceId).toLowerCase().includes("2");
+    deviceTitle.textContent = isClassic2 ? "MidNite Solar Classic #2" : "MidNite Solar Classic #1";
+    deviceSubtitle.textContent = isClassic2 
+      ? "High-Voltage MPPT Charge Controller (192.168.42.130)" 
+      : "High-Voltage MPPT Charge Controller (192.168.42.129)";
+    badgeModel.textContent = d.model_name || payload.model || (isClassic2 ? "Classic MPPT (192.168.42.130)" : "Classic 150/200/250");
     badgeProtocol.textContent = "Modbus TCP (Port 502)";
 
     // 1. Hero Grid
@@ -302,6 +305,18 @@ document.addEventListener("DOMContentLoaded", () => {
         </div>
       </section>
     `;
+
+    if (isClassic2 && !payload.online) {
+      parameterSections.innerHTML = `
+        <div style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; padding: 1.25rem; margin-bottom: 1.5rem;">
+          <div style="font-weight: 600; color: #ef4444; margin-bottom: 0.35rem; font-size: 1rem;">Classic #2 Awaiting Network Connection</div>
+          <div style="color: var(--text-muted); font-size: 0.85rem; line-height: 1.5;">
+            This controller is pre-configured for static IP address <code>192.168.42.130:502</code>. 
+            Once the ethernet cable is connected and the unit is assigned this address, telemetry polling will automatically engage without restarting the service.
+          </div>
+        </div>
+      ` + parameterSections.innerHTML;
+    }
 
     // 3. Raw Table Rows
     const regs = payload.registers || [];

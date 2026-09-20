@@ -33,9 +33,16 @@ class SunnyWebBoxConfig(BaseModel):
     units: WebBoxUnits = Field(default_factory=WebBoxUnits)
     devices: WebBoxDevices = Field(default_factory=WebBoxDevices)
 
+class Classic2Config(BaseModel):
+    enabled: bool = True
+    host: str = "192.168.42.130"
+    port: int = 502
+    unit_id: int = 1
+
 class ModbusConfig(BaseModel):
     timeout_seconds: float = 3.0
     classic: ClassicConfig = Field(default_factory=ClassicConfig)
+    classic2: Classic2Config = Field(default_factory=Classic2Config)
     sunny_webbox: SunnyWebBoxConfig = Field(default_factory=SunnyWebBoxConfig)
 
 class MQTTConfig(BaseModel):

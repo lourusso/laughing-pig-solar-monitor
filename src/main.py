@@ -1,5 +1,6 @@
 from __future__ import annotations
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 import logging
 import signal
 import sys
@@ -37,6 +38,16 @@ class SolarMonitorService:
                 timeout=config.modbus.timeout_seconds
             )
 
+        self.classic2 = None
+        if hasattr(config.modbus, "classic2") and config.modbus.classic2.enabled:
+            # Short timeout so offline Classic 2 does not block the polling cycle
+            self.classic2 = MidNiteClassic(
+                host=config.modbus.classic2.host,
+                port=config.modbus.classic2.port,
+                unit_id=config.modbus.classic2.unit_id,
+                timeout=min(config.modbus.timeout_seconds, 1.5)
+            )
+
         self.webbox = None
         if config.modbus.sunny_webbox.enabled:
             self.webbox = SMAWebBox(
@@ -64,6 +75,8 @@ class SolarMonitorService:
 
         self._latest_webbox_full: Dict[str, Any] = {}
         self._latest_classic_full: Dict[str, Any] = {}
+        self._latest_classic2_full: Dict[str, Any] = {}
+        self._pool = ThreadPoolExecutor(max_workers=3)
         self._running = False
         self._poll_thread = None
 
@@ -83,30 +96,74 @@ class SolarMonitorService:
             self.mqtt.stop()
         if self.classic:
             self.classic.close()
+        if self.classic2:
+            self.classic2.close()
         if self.webbox:
             self.webbox.close()
+        self._pool.shutdown(wait=False)
 
     def poll_once(self) -> TelemetrySnapshot:
-        classic_data = self.classic.poll() if self.classic else {}
-        webbox_data = self.webbox.poll() if self.webbox else {}
-        self._latest_classic_full = classic_data
+        # Poll all controllers concurrently
+        fut_c1 = self._pool.submit(self.classic.poll) if self.classic else None
+        fut_c2 = self._pool.submit(self.classic2.poll) if self.classic2 else None
+        fut_wb = self._pool.submit(self.webbox.poll) if self.webbox else None
+
+        classic1_data = fut_c1.result() if fut_c1 else {}
+        classic2_data = fut_c2.result() if fut_c2 else {}
+        webbox_data = fut_wb.result() if fut_wb else {}
+
+        self._latest_classic_full = classic1_data
+        self._latest_classic2_full = classic2_data
         self._latest_webbox_full = webbox_data
 
         si_data = webbox_data.get("sunny_island", {})
         sb_data = webbox_data.get("sunny_boy", {})
 
-        pv_dc = float(classic_data.get("pv_power_watts", 0.0))
+        c1_watts = float(classic1_data.get("pv_power_watts", 0.0))
+        c2_watts = float(classic2_data.get("pv_power_watts", 0.0))
+        pv_dc = round(c1_watts + c2_watts, 1)
+
+        c1_daily = float(classic1_data.get("energy_today_kwh", 0.0))
+        c2_daily = float(classic2_data.get("energy_today_kwh", 0.0))
+        pv_dc_daily = round(c1_daily + c2_daily, 2)
+
         pv_ac = float(sb_data.get("pv_power_watts", 0.0))
         total_pv = round(pv_dc + pv_ac, 1)
+
+        # Active battery volts on DC bus (prefer online classic, fallback to other)
+        bat_volts = float(classic1_data.get("battery_voltage", 0.0))
+        if bat_volts <= 0:
+            bat_volts = float(classic2_data.get("battery_voltage", 0.0))
+
+        # Overall charge stage
+        c1_stage = str(classic1_data.get("charge_stage", "RESTING"))
+        c2_stage = str(classic2_data.get("charge_stage", "OFFLINE"))
+        active_stage = c1_stage if c1_stage not in ("OFFLINE", "RESTING") else (c2_stage if c2_stage != "OFFLINE" else c1_stage)
 
         snapshot = TelemetrySnapshot(
             timestamp=datetime.now(timezone.utc).isoformat(),
             pv_dc_power_watts=pv_dc,
-            pv_dc_volts=float(classic_data.get("pv_voltage", 0.0)),
-            pv_dc_amps=float(classic_data.get("pv_current", 0.0)),
-            pv_dc_daily_kwh=float(classic_data.get("energy_today_kwh", 0.0)),
-            classic_bat_volts=float(classic_data.get("battery_voltage", 0.0)),
-            charge_stage=str(classic_data.get("charge_stage", "RESTING")),
+            pv_dc_volts=float(classic1_data.get("pv_voltage", 0.0)),
+            pv_dc_amps=round(float(classic1_data.get("pv_current", 0.0)) + float(classic2_data.get("pv_current", 0.0)), 1),
+            pv_dc_daily_kwh=pv_dc_daily,
+            classic_bat_volts=bat_volts,
+            charge_stage=active_stage,
+
+            classic1_power_watts=c1_watts,
+            classic1_volts=float(classic1_data.get("pv_voltage", 0.0)),
+            classic1_amps=float(classic1_data.get("pv_current", 0.0)),
+            classic1_daily_kwh=c1_daily,
+            classic1_bat_volts=float(classic1_data.get("battery_voltage", 0.0)),
+            classic1_stage=c1_stage,
+            classic1_online=bool(classic1_data.get("online")),
+
+            classic2_power_watts=c2_watts,
+            classic2_volts=float(classic2_data.get("pv_voltage", 0.0)),
+            classic2_amps=float(classic2_data.get("pv_current", 0.0)),
+            classic2_daily_kwh=c2_daily,
+            classic2_bat_volts=float(classic2_data.get("battery_voltage", 0.0)),
+            classic2_stage=c2_stage,
+            classic2_online=bool(classic2_data.get("online")),
 
             pv_ac_power_watts=pv_ac,
             pv_ac_volts=float(sb_data.get("ac_voltage", 0.0)),
@@ -126,7 +183,7 @@ class SolarMonitorService:
             ac_frequency_hz=float(si_data.get("ac_frequency", 60.0)),
             ac_voltage_volts=float(si_data.get("ac_voltage", 120.0)),
 
-            classic_online=bool(classic_data.get("online")),
+            classic_online=bool(classic1_data.get("online") or classic2_data.get("online")),
             webbox_online=bool(webbox_data.get("online"))
         )
 
@@ -142,22 +199,55 @@ class SolarMonitorService:
     def get_device_telemetry(self, device_id: str) -> Dict[str, Any]:
         """Fetch rich real-time telemetry for a specific device."""
         dev = device_id.lower().strip()
-        if dev in ("midnite", "classic"):
+        if dev in ("midnite", "classic", "classic-1", "midnite-1", "classic1", "midnite1"):
             if self.classic:
                 try:
                     full = self.classic.poll_full()
                     if full.get("online"):
+                        full["device_id"] = "classic-1"
+                        full["device_name"] = "MidNite Solar Classic #1"
                         return full
                 except Exception as e:
-                    logger.debug(f"Live poll_full for MidNite failed: {e}")
+                    logger.debug(f"Live poll_full for MidNite #1 failed: {e}")
             
             c = self._latest_classic_full
             return {
-                "device_id": "midnite",
-                "device_name": "MidNite Solar Classic",
-                "model": "Classic MPPT Charge Controller",
+                "device_id": "classic-1",
+                "device_name": "MidNite Solar Classic #1",
+                "model": "Classic MPPT Charge Controller (192.168.42.129)",
                 "online": bool(c.get("online")),
                 "data": c,
+                "registers": []
+            }
+
+        elif dev in ("classic-2", "midnite-2", "classic2", "midnite2"):
+            if self.classic2:
+                try:
+                    full = self.classic2.poll_full()
+                    if full.get("online"):
+                        full["device_id"] = "classic-2"
+                        full["device_name"] = "MidNite Solar Classic #2"
+                        return full
+                except Exception as e:
+                    logger.debug(f"Live poll_full for MidNite #2 failed: {e}")
+
+            c2 = self._latest_classic2_full
+            return {
+                "device_id": "classic-2",
+                "device_name": "MidNite Solar Classic #2",
+                "model": "Classic MPPT Charge Controller (192.168.42.130)",
+                "online": bool(c2.get("online")),
+                "data": c2 or {
+                    "online": False,
+                    "pv_power_watts": 0.0,
+                    "pv_voltage": 0.0,
+                    "pv_current": 0.0,
+                    "battery_voltage": 0.0,
+                    "battery_current": 0.0,
+                    "energy_today_kwh": 0.0,
+                    "charge_stage": "OFFLINE",
+                    "error": "Awaiting physical network connection at 192.168.42.130"
+                },
                 "registers": []
             }
 

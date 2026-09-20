@@ -65,37 +65,92 @@ async function fetchLiveTelemetry() {
     document.getElementById("load-power").textContent = `${loadWatts} W`;
     document.getElementById("load-sub").textContent = `${(data.ac_voltage_volts || 120).toFixed(1)}V @ ${(data.ac_frequency_hz || 60).toFixed(2)}Hz`;
 
-    // MidNite Details
-    document.getElementById("midnite-stage").textContent = data.charge_stage || "OFFLINE";
-    document.getElementById("midnite-power").textContent = `${dcPv} W`;
-    document.getElementById("midnite-pv-v").textContent = `${(data.pv_dc_volts || 0).toFixed(1)} V`;
-    const midniteBatEl = document.getElementById("midnite-bat-v");
-    if (midniteBatEl) {
-      midniteBatEl.textContent = `${(data.classic_bat_volts || 0).toFixed(1)} V`;
+    // MidNite Classic #1 Details
+    const c1Power = Math.round(data.classic1_power_watts ?? (data.pv_dc_power_watts || 0));
+    const c1Stage = data.classic1_stage || data.charge_stage || "RESTING";
+    const c1PvV = Number(data.classic1_volts ?? (data.pv_dc_volts || 0)).toFixed(1);
+    const c1BatV = Number(data.classic1_bat_volts ?? (data.classic_bat_volts || 0)).toFixed(1);
+    const c1Daily = Number(data.classic1_daily_kwh ?? (data.pv_dc_daily_kwh || 0)).toFixed(2);
+
+    const c1StageEl = document.getElementById("classic1-stage");
+    if (c1StageEl) c1StageEl.textContent = c1Stage;
+    const c1PowerEl = document.getElementById("classic1-power");
+    if (c1PowerEl) c1PowerEl.textContent = `${c1Power} W`;
+    const c1PvEl = document.getElementById("classic1-pv-v");
+    if (c1PvEl) c1PvEl.textContent = `${c1PvV} V`;
+    const c1BatEl = document.getElementById("classic1-bat-v");
+    if (c1BatEl) c1BatEl.textContent = `${c1BatV} V`;
+    const c1DailyEl = document.getElementById("classic1-daily");
+    if (c1DailyEl) c1DailyEl.textContent = `${c1Daily} kWh`;
+
+    // MidNite Classic #2 Details (192.168.42.130)
+    const c2Online = Boolean(data.classic2_online);
+    const c2StageEl = document.getElementById("classic2-stage");
+    const c2PowerEl = document.getElementById("classic2-power");
+    const c2PvEl = document.getElementById("classic2-pv-v");
+    const c2BatEl = document.getElementById("classic2-bat-v");
+    const c2DailyEl = document.getElementById("classic2-daily");
+
+    if (c2Online) {
+      const c2Power = Math.round(data.classic2_power_watts || 0);
+      if (c2StageEl) {
+        c2StageEl.textContent = data.classic2_stage || "RESTING";
+        c2StageEl.style.backgroundColor = "var(--border-color)";
+        c2StageEl.style.color = "var(--text-main)";
+      }
+      if (c2PowerEl) c2PowerEl.textContent = `${c2Power} W`;
+      if (c2PvEl) c2PvEl.textContent = `${Number(data.classic2_volts || 0).toFixed(1)} V`;
+      if (c2BatEl) c2BatEl.textContent = `${Number(data.classic2_bat_volts || 0).toFixed(1)} V`;
+      if (c2DailyEl) c2DailyEl.textContent = `${Number(data.classic2_daily_kwh || 0).toFixed(2)} kWh`;
+    } else {
+      if (c2StageEl) {
+        c2StageEl.textContent = "OFFLINE";
+        c2StageEl.style.backgroundColor = "rgba(239, 68, 68, 0.15)";
+        c2StageEl.style.color = "#ef4444";
+      }
+      if (c2PowerEl) c2PowerEl.textContent = "0 W";
+      if (c2PvEl) c2PvEl.textContent = "-- V";
+      if (c2BatEl) c2BatEl.textContent = "-- V";
+      if (c2DailyEl) c2DailyEl.textContent = "0.00 kWh";
     }
-    document.getElementById("midnite-daily").textContent = `${(data.pv_dc_daily_kwh || 0).toFixed(2)} kWh`;
 
     // Sunny Boy Details
     document.getElementById("sunnyboy-power").textContent = `${acPv} W`;
     document.getElementById("sunnyboy-total").textContent = `${(data.pv_ac_total_kwh || 0).toFixed(1)} kWh`;
 
     // Hardware Status Pills
-    const pClassic = document.getElementById("pill-classic");
-    if (data.classic_online) {
-      pClassic.classList.add("online");
-      pClassic.querySelector("span:last-child").textContent = "MidNite: Online";
-    } else {
-      pClassic.classList.remove("online");
-      pClassic.querySelector("span:last-child").textContent = "MidNite: Offline";
+    const pClassic1 = document.getElementById("pill-classic");
+    const c1Online = data.classic1_online ?? data.classic_online;
+    if (pClassic1) {
+      if (c1Online) {
+        pClassic1.classList.add("online");
+        pClassic1.querySelector("span:last-child").textContent = "Classic #1: Online";
+      } else {
+        pClassic1.classList.remove("online");
+        pClassic1.querySelector("span:last-child").textContent = "Classic #1: Offline";
+      }
+    }
+
+    const pClassic2 = document.getElementById("pill-classic2");
+    if (pClassic2) {
+      if (c2Online) {
+        pClassic2.classList.add("online");
+        pClassic2.querySelector("span:last-child").textContent = "Classic #2: Online";
+      } else {
+        pClassic2.classList.remove("online");
+        pClassic2.querySelector("span:last-child").textContent = "Classic #2: Offline";
+      }
     }
 
     const pWebbox = document.getElementById("pill-webbox");
-    if (data.webbox_online) {
-      pWebbox.classList.add("online");
-      pWebbox.querySelector("span:last-child").textContent = "WebBox: Online";
-    } else {
-      pWebbox.classList.remove("online");
-      pWebbox.querySelector("span:last-child").textContent = "WebBox: Offline";
+    if (pWebbox) {
+      if (data.webbox_online) {
+        pWebbox.classList.add("online");
+        pWebbox.querySelector("span:last-child").textContent = "WebBox: Online";
+      } else {
+        pWebbox.classList.remove("online");
+        pWebbox.querySelector("span:last-child").textContent = "WebBox: Offline";
+      }
     }
 
   } catch (err) {
