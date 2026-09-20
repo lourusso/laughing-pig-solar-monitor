@@ -13,6 +13,7 @@ services:
     volumes:
       - ./data:/app/data
       - ./config:/app/config
+      - ./src:/app/src
     environment:
       - TZ=America/Los_Angeles
       - PYTHONUNBUFFERED=1
