@@ -46,7 +46,7 @@ async function fetchLiveTelemetry() {
       batSub.textContent = "Idle";
       batSub.style.color = "#94a3b8";
       batDetails.style.color = "var(--text-main)";
-      batSoc.style.color = "var(--batt-color)";
+      batSoc.style.color = "var(--battery-color)";
     }
 
     // Household Loads

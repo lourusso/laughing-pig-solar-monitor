@@ -90,6 +90,7 @@ class SMAWebBox:
 
             bat_soc = safe_float(si_channels.get("BatSoc") if si_channels.get("BatSoc") is not None else si_channels.get("ChaStt"), 0.0)
             bat_soh = safe_float(si_channels.get("Soh"), 100.0)
+            bat_volts = safe_float(si_channels.get("BatVtg"), 0.0)
             # Sunny Island TotBatCur convention: positive when discharging (inverter drawing from battery),
             # negative when charging (inverter/charger putting power into battery).
             # Invert to standard battery convention: positive = charging, negative = discharging.
