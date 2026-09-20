@@ -149,6 +149,7 @@ main {
   align-items: center;
   position: relative;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
 .flow-node.solar { border-top: 3px solid var(--solar-color); }
@@ -248,7 +249,8 @@ main {
   transition: transform 0.18s ease, color 0.18s ease;
 }
 
-.clickable-card:hover .card-arrow {
+.clickable-card:hover .card-arrow,
+.flow-node[style*="cursor: pointer"]:hover .card-arrow {
   color: #38bdf8;
   transform: translate(2px, -2px);
 }

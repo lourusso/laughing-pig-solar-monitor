@@ -161,7 +161,7 @@ class SolarMonitorService:
                 "registers": []
             }
 
-        elif dev in ("sunny-island", "battery", "si", "ess", "discover", "discover-battery"):
+        elif dev in ("sunny-island", "battery", "si", "ess", "discover", "discover-battery", "households", "household", "loads", "load"):
             si = self._latest_webbox_full.get("sunny_island", {})
             return {
                 "device_id": "sunny-island",

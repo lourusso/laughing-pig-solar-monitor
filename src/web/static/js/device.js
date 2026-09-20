@@ -87,7 +87,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (dev.includes("midnite") || dev.includes("classic")) {
       renderMidNiteView(payload, d);
-    } else if (dev.includes("island") || dev.includes("si") || dev.includes("battery") || dev.includes("ess") || dev.includes("discover")) {
+    } else if (dev.includes("island") || dev.includes("si") || dev.includes("battery") || dev.includes("ess") || dev.includes("discover") || dev.includes("load") || dev.includes("household")) {
       renderSunnyIslandView(payload, d);
     } else if (dev.includes("boy") || dev.includes("sb")) {
       renderSunnyBoyView(payload, d);
@@ -315,8 +315,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // --- SMA SUNNY ISLAND 6048 & DISCOVER AES LITHIUM RENDERER ---
   function renderSunnyIslandView(payload, d) {
-    deviceTitle.textContent = "Discover AES Lithium & SMA Sunny Island 6048";
-    deviceSubtitle.textContent = "Closed-Loop Battery Management System (LYNK II CAN) & Island Inverter";
+    const isLoadsFocused = window.location.pathname.includes("household") || window.location.pathname.includes("load") || window.location.hash.includes("load");
+    deviceTitle.textContent = isLoadsFocused ? "SMA Sunny Island 6048 & Household Loads" : "Discover AES Lithium & SMA Sunny Island 6048";
+    deviceSubtitle.textContent = isLoadsFocused ? "Off-Grid AC Power Distribution, Inverter Telemetry & Energy Storage" : "Closed-Loop Battery Management System (LYNK II CAN) & Island Inverter";
     badgeModel.textContent = "Discover AES LiFePO4 + SI 6048-US";
     badgeProtocol.textContent = "LYNK II CAN ➔ SMA ComSync ➔ WebBox RPC";
 

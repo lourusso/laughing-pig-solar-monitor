@@ -37,7 +37,7 @@
         <!-- Solar Generation Node -->
         <div class="flow-node solar" onclick="window.location.href='/device/midnite'" style="cursor: pointer;" title="Click to view Solar MPPT details">
           <div class="node-icon">☀️</div>
-          <div class="node-label">Solar PV</div>
+          <div class="node-label">Solar PV <span class="card-arrow">↗</span></div>
           <div id="solar-power" class="node-value" style="color: var(--solar-color);">-- W</div>
           <div id="solar-breakdown" class="node-subtext">DC: --W | AC: --W</div>
         </div>
@@ -50,7 +50,7 @@
         <!-- Energy Storage Node -->
         <div class="flow-node battery" onclick="window.location.href='/device/sunny-island'" style="cursor: pointer;" title="Click to view Battery & Inverter details">
           <div class="node-icon">🔋</div>
-          <div class="node-label">Discover Battery</div>
+          <div class="node-label">Discover Battery <span class="card-arrow">↗</span></div>
           <div id="battery-soc" class="node-value" style="color: var(--battery-color);">--%</div>
           <div id="battery-sub" class="node-subtext">Monitoring...</div>
         </div>
@@ -61,9 +61,9 @@
         </div>
 
         <!-- Load Consumption Node -->
-        <div class="flow-node load">
+        <div class="flow-node load" onclick="window.location.href='/device/sunny-island'" style="cursor: pointer;" title="Click to inspect Sunny Island 6048 & Household Loads telemetry">
           <div class="node-icon">🏡</div>
-          <div class="node-label">Household Loads</div>
+          <div class="node-label">Household Loads <span class="card-arrow">↗</span></div>
           <div id="load-power" class="node-value" style="color: var(--load-color);">-- W</div>
           <div id="load-sub" class="node-subtext">120V @ 60.0Hz</div>
         </div>
