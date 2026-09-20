@@ -159,12 +159,12 @@ class SolarMonitorService:
                 "registers": []
             }
 
-        elif dev in ("sunny-island", "battery", "si"):
+        elif dev in ("sunny-island", "battery", "si", "ess", "discover", "discover-battery"):
             si = self._latest_webbox_full.get("sunny_island", {})
             return {
                 "device_id": "sunny-island",
-                "device_name": "SMA Sunny Island 6048",
-                "model": "Sunny Island 6048 & Discover AES Lithium",
+                "device_name": "Discover AES Lithium & SMA Sunny Island 6048",
+                "model": "Discover AES LiFePO4 + SI 6048-US (LYNK II Closed-Loop)",
                 "online": bool(si.get("online")),
                 "data": si,
                 "channels": si.get("raw_channels", [])
