@@ -1,8 +1,9 @@
+from __future__ import annotations
 import json
 import logging
 import urllib.request
 import urllib.parse
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from .client import ModbusTCPClient, ModbusError, to_uint_32, to_int_32
 
 logger = logging.getLogger(__name__)

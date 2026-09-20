@@ -1,5 +1,6 @@
+from __future__ import annotations
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from .client import ModbusTCPClient, ModbusError, to_signed_16, to_uint_32
 
 logger = logging.getLogger(__name__)

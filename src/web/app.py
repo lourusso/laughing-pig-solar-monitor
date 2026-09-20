@@ -1,5 +1,6 @@
+from __future__ import annotations
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Any, Dict, List
 from fastapi import FastAPI, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, FileResponse
