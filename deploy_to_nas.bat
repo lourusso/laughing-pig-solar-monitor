@@ -7,11 +7,7 @@ echo ====================================================================
 echo.
 echo Target NAS: 192.168.42.184
 echo NAS User:   lou
-echo Repo:       https://github.com/lourusso/laughing-pig-solar-monitor.git
-echo.
-echo NOTE: If GitHub asks for a password during git clone, note that
-echo GitHub requires a Personal Access Token (PAT) for private repos,
-echo OR you can set the repository to Public in GitHub repo settings.
+echo Repo:       https://github.com/lourusso/laughing-pig-solar-monitor.git (Public)
 echo.
 echo Connecting via SSH to deploy container using Git on the NAS...
 echo Please enter your Synology password when prompted.
