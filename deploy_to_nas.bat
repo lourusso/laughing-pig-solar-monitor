@@ -7,33 +7,23 @@ echo ====================================================================
 echo.
 echo Target NAS: 192.168.42.184
 echo NAS User:   lou
+echo Repo:       https://github.com/lourusso/laughing-pig-solar-monitor.git
 echo.
-echo [1/3] Packaging project files (47 KB)...
-tar -czf deploy.tar.gz Dockerfile docker-compose.yml requirements.txt config src
-
+echo NOTE: If GitHub asks for a password during git clone, note that
+echo GitHub requires a Personal Access Token (PAT) for private repos,
+echo OR you can set the repository to Public in GitHub repo settings.
 echo.
-echo [2/3] Uploading package to Synology NAS...
-echo (Enter password for lou when prompted)
-scp deploy.tar.gz lou@192.168.42.184:/tmp/deploy.tar.gz
-del deploy.tar.gz
-
-if errorlevel 1 (
-    echo.
-    echo [ERROR] Failed to upload files to NAS. Please check password or network.
-    pause
-    exit /b 1
-)
-
+echo Connecting via SSH to deploy container using Git on the NAS...
+echo Please enter your Synology password when prompted.
 echo.
-echo [3/3] Extracting files and starting Docker container on NAS...
-echo (Enter password for sudo when prompted)
-ssh -t lou@192.168.42.184 "sudo sh -c 'TARGET_DIR=\"/volume1/docker/laughing-pig-solar\"; if [ ! -d \"/volume1/docker\" ]; then for v in /volume*/docker; do if [ -d \"\$v\" ]; then TARGET_DIR=\"\$v/laughing-pig-solar\"; break; fi; done; fi; mkdir -p \"\$TARGET_DIR\" && tar -xzf /tmp/deploy.tar.gz -C \"\$TARGET_DIR/\" && rm -f /tmp/deploy.tar.gz && cd \"\$TARGET_DIR\" && (docker compose up -d --build || docker-compose up -d --build)'"
+
+ssh -t lou@192.168.42.184 "sudo sh -c 'export PATH=\$PATH:/var/packages/Git/target/bin:/usr/local/bin; TARGET_DIR=\"/volume1/docker/laughing-pig-solar\"; if [ ! -d \"/volume1/docker\" ]; then for v in /volume*/docker; do if [ -d \"\$v\" ]; then TARGET_DIR=\"\$v/laughing-pig-solar\"; break; fi; done; fi; mkdir -p \"\$TARGET_DIR\" && cd \"\$TARGET_DIR\" && if [ -d .git ]; then git pull; else git clone https://github.com/lourusso/laughing-pig-solar-monitor.git .; fi && (docker compose up -d --build || docker-compose up -d --build)'"
 
 echo.
 echo ====================================================================
-echo Deployment script finished!
+echo If the build succeeded, your monitor is now running 24/7 on the NAS!
 echo.
-echo If the build succeeded above, access the live dashboard at:
+echo Access the live dashboard at:
 echo    http://192.168.42.184:8050
 echo ====================================================================
 echo.
