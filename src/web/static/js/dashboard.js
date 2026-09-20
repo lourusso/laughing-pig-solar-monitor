@@ -44,6 +44,7 @@ async function fetchLiveTelemetry() {
 
     // MidNite Details
     document.getElementById("midnite-stage").textContent = data.charge_stage || "OFFLINE";
+    document.getElementById("midnite-power").textContent = `${dcPv} W`;
     document.getElementById("midnite-pv-v").textContent = `${(data.pv_dc_volts || 0).toFixed(1)} V`;
     document.getElementById("midnite-daily").textContent = `${(data.pv_dc_daily_kwh || 0).toFixed(2)} kWh`;
 
