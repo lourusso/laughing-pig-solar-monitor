@@ -21,20 +21,32 @@ async function fetchLiveTelemetry() {
     const batWatts = Math.round(data.battery_power_watts || 0);
     const batAmps = (data.battery_amps || 0).toFixed(1);
     
-    document.getElementById("battery-soc").textContent = `${soc}%`;
-    document.getElementById("battery-volts").textContent = `${batVolts} V`;
-    document.getElementById("battery-details").textContent = `${batWatts >= 0 ? "+" : ""}${batWatts} W (${batAmps} A)`;
-    
+    const batSoc = document.getElementById("battery-soc");
+    const batDetails = document.getElementById("battery-details");
     const batSub = document.getElementById("battery-sub");
+    
+    batSoc.textContent = `${soc}%`;
+    document.getElementById("battery-volts").textContent = `${batVolts} V`;
+    batDetails.textContent = `${batWatts > 0 ? "+" : ""}${batWatts} W (${batAmps} A)`;
+    
     if (batWatts > 10) {
+      // Charging: Green
       batSub.textContent = `Charging (${batWatts} W)`;
-      batSub.style.color = "#10b981";
+      batSub.style.color = "#22c55e";
+      batDetails.style.color = "#22c55e";
+      batSoc.style.color = "#22c55e";
     } else if (batWatts < -10) {
+      // Discharging: Red
       batSub.textContent = `Discharging (${Math.abs(batWatts)} W)`;
-      batSub.style.color = "#f59e0b";
+      batSub.style.color = "#ef4444";
+      batDetails.style.color = "#ef4444";
+      batSoc.style.color = "#ef4444";
     } else {
+      // Idle: Default/Gray
       batSub.textContent = "Idle";
       batSub.style.color = "#94a3b8";
+      batDetails.style.color = "var(--text-main)";
+      batSoc.style.color = "var(--batt-color)";
     }
 
     // Household Loads
