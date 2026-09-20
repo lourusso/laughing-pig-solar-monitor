@@ -14,6 +14,7 @@ data/*.db-shm
 data/*.sqlite3
 *.db
 *.sqlite3
+!data/.gitkeep
 
 # Python virtual environments
 venv/
