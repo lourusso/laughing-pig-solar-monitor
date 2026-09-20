@@ -227,6 +227,40 @@ main {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.clickable-card {
+  cursor: pointer;
+}
+
+.clickable-card:hover {
+  transform: translateY(-2px);
+  border-color: #38bdf8;
+  box-shadow: 0 8px 20px -4px rgba(56, 189, 248, 0.18);
+}
+
+.card-arrow {
+  display: inline-block;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-left: 0.25rem;
+  transition: transform 0.18s ease, color 0.18s ease;
+}
+
+.clickable-card:hover .card-arrow {
+  color: #38bdf8;
+  transform: translate(2px, -2px);
+}
+
+.flow-node[style*="cursor: pointer"]:hover {
+  transform: scale(1.03);
+  box-shadow: 0 4px 16px rgba(56, 189, 248, 0.2);
+}
+
+.header-status .pill[style*="cursor: pointer"]:hover {
+  border-color: #38bdf8;
+  background: #1e293b;
 }
 
 .stat-header {

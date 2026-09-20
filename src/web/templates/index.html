@@ -17,11 +17,11 @@
       </div>
     </div>
     <div class="header-status">
-      <div id="pill-classic" class="pill">
+      <div id="pill-classic" class="pill" onclick="window.location.href='/device/midnite'" style="cursor: pointer;" title="Click to view MidNite Classic details">
         <span class="pill-dot"></span>
         <span>MidNite: Checking...</span>
       </div>
-      <div id="pill-webbox" class="pill">
+      <div id="pill-webbox" class="pill" onclick="window.location.href='/device/sunny-island'" style="cursor: pointer;" title="Click to view Sunny Island & WebBox details">
         <span class="pill-dot"></span>
         <span>WebBox: Checking...</span>
       </div>
@@ -35,7 +35,7 @@
       <div class="powerflow-title">Live System Power Flow</div>
       <div class="flow-container">
         <!-- Solar Generation Node -->
-        <div class="flow-node solar">
+        <div class="flow-node solar" onclick="window.location.href='/device/midnite'" style="cursor: pointer;" title="Click to view Solar MPPT details">
           <div class="node-icon">☀️</div>
           <div class="node-label">Solar PV</div>
           <div id="solar-power" class="node-value" style="color: var(--solar-color);">-- W</div>
@@ -48,7 +48,7 @@
         </div>
 
         <!-- Energy Storage Node -->
-        <div class="flow-node battery">
+        <div class="flow-node battery" onclick="window.location.href='/device/sunny-island'" style="cursor: pointer;" title="Click to view Battery & Inverter details">
           <div class="node-icon">🔋</div>
           <div class="node-label">Discover Battery</div>
           <div id="battery-soc" class="node-value" style="color: var(--battery-color);">--%</div>
@@ -73,9 +73,9 @@
     <!-- Key Metrics Grid -->
     <section class="metrics-grid">
       <!-- Battery Card -->
-      <div class="stat-card">
+      <div class="stat-card clickable-card" onclick="window.location.href='/device/sunny-island'" title="Click to inspect all Sunny Island & Battery telemetry">
         <div class="stat-header">
-          <span class="stat-title">BATTERY STORAGE (ESS)</span>
+          <span class="stat-title">BATTERY STORAGE (ESS) <span class="card-arrow">↗</span></span>
           <span id="battery-volts" class="stat-badge">-- V</span>
         </div>
         <div id="battery-details" class="stat-main">-- W</div>
@@ -86,9 +86,9 @@
       </div>
 
       <!-- MidNite Classic Card -->
-      <div class="stat-card">
+      <div class="stat-card clickable-card" onclick="window.location.href='/device/midnite'" title="Click to inspect all MidNite Classic registers & telemetry">
         <div class="stat-header">
-          <span class="stat-title">MIDNITE SOLAR CLASSIC</span>
+          <span class="stat-title">MIDNITE SOLAR CLASSIC <span class="card-arrow">↗</span></span>
           <span id="midnite-stage" class="stat-badge">--</span>
         </div>
         <div id="midnite-power" class="stat-main">-- W</div>
@@ -100,9 +100,9 @@
       </div>
 
       <!-- Sunny Boy 4000 Card -->
-      <div class="stat-card">
+      <div class="stat-card clickable-card" onclick="window.location.href='/device/sunny-boy'" title="Click to inspect all Sunny Boy 4000 channels & telemetry">
         <div class="stat-header">
-          <span class="stat-title">SMA SUNNY BOY 4000</span>
+          <span class="stat-title">SMA SUNNY BOY 4000 <span class="card-arrow">↗</span></span>
           <span class="stat-badge">AC-Coupled</span>
         </div>
         <div id="sunnyboy-power" class="stat-main">-- W</div>

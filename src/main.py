@@ -60,6 +60,8 @@ class SolarMonitorService:
                 ha_discovery=config.mqtt.homeassistant_discovery
             )
 
+        self._latest_webbox_full: Dict[str, Any] = {}
+        self._latest_classic_full: Dict[str, Any] = {}
         self._running = False
         self._poll_thread = None
 
@@ -85,6 +87,8 @@ class SolarMonitorService:
     def poll_once(self) -> TelemetrySnapshot:
         classic_data = self.classic.poll() if self.classic else {}
         webbox_data = self.webbox.poll() if self.webbox else {}
+        self._latest_classic_full = classic_data
+        self._latest_webbox_full = webbox_data
 
         si_data = webbox_data.get("sunny_island", {})
         sb_data = webbox_data.get("sunny_boy", {})
@@ -133,6 +137,52 @@ class SolarMonitorService:
 
         return snapshot
 
+    def get_device_telemetry(self, device_id: str) -> Dict[str, Any]:
+        """Fetch rich real-time telemetry for a specific device."""
+        dev = device_id.lower().strip()
+        if dev in ("midnite", "classic"):
+            if self.classic:
+                try:
+                    full = self.classic.poll_full()
+                    if full.get("online"):
+                        return full
+                except Exception as e:
+                    logger.debug(f"Live poll_full for MidNite failed: {e}")
+            
+            c = self._latest_classic_full
+            return {
+                "device_id": "midnite",
+                "device_name": "MidNite Solar Classic",
+                "model": "Classic MPPT Charge Controller",
+                "online": bool(c.get("online")),
+                "data": c,
+                "registers": []
+            }
+
+        elif dev in ("sunny-island", "battery", "si"):
+            si = self._latest_webbox_full.get("sunny_island", {})
+            return {
+                "device_id": "sunny-island",
+                "device_name": "SMA Sunny Island 6048",
+                "model": "Sunny Island 6048 & Discover AES Lithium",
+                "online": bool(si.get("online")),
+                "data": si,
+                "channels": si.get("raw_channels", [])
+            }
+
+        elif dev in ("sunny-boy", "sb"):
+            sb = self._latest_webbox_full.get("sunny_boy", {})
+            return {
+                "device_id": "sunny-boy",
+                "device_name": "SMA Sunny Boy 4000",
+                "model": "Sunny Boy 4000-US Grid-Tie Inverter",
+                "online": bool(sb.get("online")),
+                "data": sb,
+                "channels": sb.get("raw_channels", [])
+            }
+        else:
+            return {"error": f"Unknown device ID: {device_id}"}
+
     def _polling_loop(self):
         interval = self.config.system.poll_interval_seconds
         logger.info(f"Modbus polling loop active (Interval: {interval}s)")
@@ -159,7 +209,7 @@ def run():
     service.start()
 
     # Create FastAPI app
-    app = create_app(service.db, config)
+    app = create_app(service.db, config, service=service)
 
     # Web Server runner
     uvicorn_config = uvicorn.Config(

@@ -124,6 +124,11 @@ class SMAWebBox:
             sb_temp = safe_float(sb_channels.get("Temperature"), 0.0)
             sb_mode = sb_channels.get("Mode", "OK")
 
+            si_dev = next((d for d in devices if d.get("key") == self.si_key), {})
+            sb_dev = next((d for d in devices if d.get("key") == self.sb_key), {})
+            si_raw_channels = si_dev.get("channels", [])
+            sb_raw_channels = sb_dev.get("channels", [])
+
             return {
                 "online": True,
                 "protocol": "WebBox-RPC",
@@ -135,22 +140,27 @@ class SMAWebBox:
                     "battery_current": bat_amps,
                     "battery_power_watts": bat_watts,
                     "battery_temp_c": bat_temp,
+                    "battery_temp_f": round(bat_temp * 1.8 + 32.0, 1),
                     "inverter_power_watts": inv_pwr_watts,
                     "load_power_watts": abs(lod_pwr_watts) if lod_pwr_watts != 0 else abs(inv_pwr_watts),
                     "grid_gen_power_watts": ext_pwr_watts,
                     "ac_voltage": ac_volts,
                     "ac_frequency": ac_freq,
+                    "raw_channels": si_raw_channels
                 },
                 "sunny_boy": {
                     "online": bool(sb_channels),
                     "pv_power_watts": sb_power_watts,
                     "pv_voltage": sb_pv_volts,
                     "pv_current": sb_pv_amps,
+                    "dc_power_watts": round(sb_pv_volts * sb_pv_amps, 1),
                     "ac_voltage": sb_ac_volts,
                     "ac_frequency": sb_ac_freq,
                     "energy_total_kwh": sb_total_kwh,
                     "temp_c": sb_temp,
-                    "mode": sb_mode
+                    "temp_f": round(sb_temp * 1.8 + 32.0, 1),
+                    "mode": sb_mode,
+                    "raw_channels": sb_raw_channels
                 },
                 "error": None
             }
