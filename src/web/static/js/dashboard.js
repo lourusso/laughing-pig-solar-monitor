@@ -359,8 +359,10 @@ async function loadHistoryCharts() {
 
 // Initial calls
 fetchLiveTelemetry();
-loadHistoryCharts();
-
-// Polling intervals
 setInterval(fetchLiveTelemetry, 3000);
-setInterval(loadHistoryCharts, 60000);
+
+// Only load and poll historical charts on larger screens (desktop)
+if (window.innerWidth > 1024) {
+  loadHistoryCharts();
+  setInterval(loadHistoryCharts, 60000);
+}

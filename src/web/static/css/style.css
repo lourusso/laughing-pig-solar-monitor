@@ -342,6 +342,14 @@ main {
   width: 100%;
 }
 
+/* Tablet & Mobile View: show only power flow cards */
+@media (max-width: 1024px) {
+  .metrics-grid,
+  .charts-grid {
+    display: none !important;
+  }
+}
+
 @media (max-width: 900px) {
   .flow-container {
     grid-template-columns: 1fr;
