@@ -1,6 +1,11 @@
 let powerChart = null;
 let socChart = null;
 
+// Backwards-compatible nullish coalescing helper (equivalent to a ?? b)
+function coalesce(val, fallback) {
+  return (val !== undefined && val !== null) ? val : fallback;
+}
+
 async function fetchLiveTelemetry() {
   try {
     const res = await fetch("/api/live");
@@ -12,7 +17,7 @@ async function fetchLiveTelemetry() {
     const totalPv = Math.round(data.total_pv_power_watts || 0);
     const dcPv = Math.round(data.pv_dc_power_watts || 0);
     const acPv = Math.round(data.pv_ac_power_watts || 0);
-    const c1PowerVal = Math.round(data.classic1_power_watts ?? (data.pv_dc_power_watts || 0));
+    const c1PowerVal = Math.round(coalesce(data.classic1_power_watts, data.pv_dc_power_watts || 0));
     const c2PowerVal = Math.round(data.classic2_power_watts || 0);
 
     const solarPowerEl = document.getElementById("solar-power");
@@ -27,11 +32,11 @@ async function fetchLiveTelemetry() {
     }
 
     // Battery Storage
-    const soc = Math.round(data.battery_soc ?? 0);
-    const rawVolts = data.battery_volts ?? data.battery_voltage ?? 0;
+    const soc = Math.round(coalesce(data.battery_soc, 0));
+    const rawVolts = coalesce(data.battery_volts, coalesce(data.battery_voltage, 0));
     const batVolts = Number(rawVolts).toFixed(1);
-    const batWatts = Math.round(data.battery_power_watts ?? 0);
-    let rawAmps = data.battery_amps ?? data.battery_current;
+    const batWatts = Math.round(coalesce(data.battery_power_watts, 0));
+    let rawAmps = coalesce(data.battery_amps, data.battery_current);
     if ((rawAmps === undefined || rawAmps === null || rawAmps === 0) && batWatts !== 0 && Number(rawVolts) > 0) {
       rawAmps = batWatts / Number(rawVolts);
     }
@@ -85,12 +90,12 @@ async function fetchLiveTelemetry() {
     if (loadSubEl) loadSubEl.textContent = `${(data.ac_voltage_volts || 120).toFixed(1)}V @ ${(data.ac_frequency_hz || 60).toFixed(2)}Hz`;
 
     // MidNite Classic #1 Details
-    const c1Power = Math.round(data.classic1_power_watts ?? (data.pv_dc_power_watts || 0));
+    const c1Power = Math.round(coalesce(data.classic1_power_watts, data.pv_dc_power_watts || 0));
     const c1Stage = data.classic1_stage || data.charge_stage || "RESTING";
-    const c1PvV = Number(data.classic1_volts ?? (data.pv_dc_volts || 0)).toFixed(1);
+    const c1PvV = Number(coalesce(data.classic1_volts, data.pv_dc_volts || 0)).toFixed(1);
     const c1PvA = Number(data.classic1_amps || 0).toFixed(1);
-    const c1BatV = Number(data.classic1_bat_volts ?? (data.classic_bat_volts || 0)).toFixed(1);
-    const c1Daily = Number(data.classic1_daily_kwh ?? (data.pv_dc_daily_kwh || 0)).toFixed(2);
+    const c1BatV = Number(coalesce(data.classic1_bat_volts, data.classic_bat_volts || 0)).toFixed(1);
+    const c1Daily = Number(coalesce(data.classic1_daily_kwh, data.pv_dc_daily_kwh || 0)).toFixed(2);
 
     const c1StageEl = document.getElementById("classic1-stage");
     if (c1StageEl) c1StageEl.textContent = c1Stage;
@@ -148,7 +153,7 @@ async function fetchLiveTelemetry() {
 
     // Hardware Status Pills
     const pClassic1 = document.getElementById("pill-classic");
-    const c1Online = data.classic1_online ?? data.classic_online;
+    const c1Online = coalesce(data.classic1_online, data.classic_online);
     if (pClassic1) {
       const lbl = pClassic1.querySelector("span:last-child");
       if (c1Online) {
@@ -185,7 +190,7 @@ async function fetchLiveTelemetry() {
     }
 
     const pSunnyBoy = document.getElementById("pill-sunnyboy");
-    const sbOnline = Boolean(data.sunnyboy_online ?? (data.pv_ac_power_watts > 0 || (data.webbox_online && data.pv_ac_total_kwh > 0)));
+    const sbOnline = Boolean(coalesce(data.sunnyboy_online, (data.pv_ac_power_watts > 0 || (data.webbox_online && data.pv_ac_total_kwh > 0))));
     if (pSunnyBoy) {
       const lblSB = pSunnyBoy.querySelector("span:last-child");
       if (sbOnline) {
@@ -204,6 +209,9 @@ async function fetchLiveTelemetry() {
 
 async function loadHistoryCharts() {
   try {
+    if (typeof Chart === "undefined") {
+      return;
+    }
     const res = await fetch("/api/history?hours=24");
     if (!res.ok) return;
     const history = await res.json();
