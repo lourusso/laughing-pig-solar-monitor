@@ -342,15 +342,105 @@ main {
   width: 100%;
 }
 
-/* Tablet & Mobile View: show only power flow cards */
-@media (max-width: 1024px) {
+/* Touchscreen Devices (Phones & Tablets in any orientation) */
+@media (pointer: coarse), (hover: none) {
   .metrics-grid,
-  .charts-grid {
+  .charts-grid,
+  .header-status {
     display: none !important;
+  }
+
+  body {
+    min-height: 100vh;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  main {
+    flex: 1;
+    padding: 0.75rem 1rem;
+    height: calc(100vh - 65px);
+    max-height: calc(100vh - 65px);
+  }
+
+  .powerflow-card {
+    flex: 1;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 1rem 1.25rem;
+  }
+
+  .powerflow-title {
+    margin-bottom: 0.5rem;
+    font-size: 0.95rem;
+  }
+
+  .node-value {
+    font-size: clamp(1.8rem, 4vw, 2.8rem);
+  }
+
+  .node-icon {
+    font-size: clamp(2rem, 4vw, 2.8rem);
   }
 }
 
-@media (max-width: 900px) {
+/* Touch Portrait: Stack vertically to fill height */
+@media ((pointer: coarse) or (hover: none)) and (orientation: portrait) {
+  .flow-container {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-evenly;
+    gap: 0.5rem;
+    height: 100%;
+    flex: 1;
+    padding: 0.5rem 0;
+  }
+
+  .flow-connector {
+    transform: rotate(90deg);
+    margin: 0.25rem auto;
+    width: 40px;
+  }
+
+  .flow-node {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 1rem;
+  }
+}
+
+/* Touch Landscape: Spread horizontally across full screen */
+@media ((pointer: coarse) or (hover: none)) and (orientation: landscape) {
+  .flow-container {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr auto 1fr;
+    align-items: center;
+    gap: 1.25rem;
+    height: 100%;
+    flex: 1;
+    padding: 0;
+  }
+
+  .flow-connector {
+    transform: none;
+    width: 60px;
+    margin: 0;
+  }
+
+  .flow-node {
+    height: 90%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 1.5rem;
+  }
+}
+
+@media (max-width: 900px) and (pointer: fine) {
   .flow-container {
     grid-template-columns: 1fr;
     gap: 1rem;

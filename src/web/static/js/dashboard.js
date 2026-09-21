@@ -361,8 +361,9 @@ async function loadHistoryCharts() {
 fetchLiveTelemetry();
 setInterval(fetchLiveTelemetry, 3000);
 
-// Only load and poll historical charts on larger screens (desktop)
-if (window.innerWidth > 1024) {
+// Only load and poll historical charts on non-touch devices (desktop)
+const isTouchDevice = window.matchMedia("(pointer: coarse), (hover: none)").matches;
+if (!isTouchDevice) {
   loadHistoryCharts();
   setInterval(loadHistoryCharts, 60000);
 }
