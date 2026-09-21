@@ -356,11 +356,21 @@ main {
     overflow: hidden;
   }
 
+  header {
+    padding: 0;
+  }
+
+  .header-inner {
+    padding: 0.4rem 1rem;
+  }
+
   main {
     flex: 1;
-    padding: 0.75rem 1rem;
-    height: calc(100vh - 65px);
-    max-height: calc(100vh - 65px);
+    padding: 0.5rem 0.75rem;
+    height: calc(100vh - 54px);
+    max-height: calc(100vh - 54px);
+    display: flex;
+    flex-direction: column;
   }
 
   .powerflow-card {
@@ -369,74 +379,147 @@ main {
     display: flex;
     flex-direction: column;
     margin: 0;
-    padding: 1rem 1.25rem;
+    padding: 0.75rem 1rem;
+    border-radius: 16px;
   }
 
   .powerflow-title {
-    margin-bottom: 0.5rem;
-    font-size: 0.95rem;
-  }
-
-  .node-value {
-    font-size: clamp(1.8rem, 4vw, 2.8rem);
-  }
-
-  .node-icon {
-    font-size: clamp(2rem, 4vw, 2.8rem);
+    margin-bottom: 0.25rem;
+    font-size: 0.8rem;
+    text-align: center;
   }
 }
 
-/* Touch Portrait: Stack vertically to fill height */
-@media ((pointer: coarse) or (hover: none)) and (orientation: portrait) {
-  .flow-container {
-    display: flex;
-    flex-direction: column;
-    justify-content: space-evenly;
-    gap: 0.5rem;
-    height: 100%;
-    flex: 1;
-    padding: 0.5rem 0;
-  }
-
-  .flow-connector {
-    transform: rotate(90deg);
-    margin: 0.25rem auto;
-    width: 40px;
-  }
-
-  .flow-node {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    padding: 1rem;
-  }
-}
-
-/* Touch Landscape: Spread horizontally across full screen */
-@media ((pointer: coarse) or (hover: none)) and (orientation: landscape) {
+/* Touch Portrait: Stack 3 cards vertically to fill full screen height */
+@media (pointer: coarse) and (orientation: portrait), (hover: none) and (orientation: portrait) {
   .flow-container {
     display: grid;
-    grid-template-columns: 1fr auto 1fr auto 1fr;
-    align-items: center;
-    gap: 1.25rem;
+    grid-template-rows: 1fr auto 1fr auto 1fr;
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
     height: 100%;
     flex: 1;
     padding: 0;
   }
 
   .flow-connector {
-    transform: none;
-    width: 60px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 22px;
+    width: 100%;
     margin: 0;
+    transform: none;
+  }
+
+  .flow-line {
+    width: 4px;
+    height: 100%;
+    background: #28354f;
+    border-radius: 2px;
   }
 
   .flow-node {
-    height: 90%;
     display: flex;
     flex-direction: column;
     justify-content: center;
-    padding: 1.5rem;
+    align-items: center;
+    padding: 1rem;
+    border-radius: 16px;
+    height: 100%;
+  }
+
+  .node-icon {
+    font-size: 2.6rem;
+    margin-bottom: 0.25rem;
+  }
+
+  .node-label {
+    font-size: 1.15rem;
+    font-weight: 700;
+  }
+
+  .node-value {
+    font-size: 3.2rem;
+    font-size: clamp(2.4rem, 6vw, 3.8rem);
+    font-weight: 800;
+    margin: 0.35rem 0;
+  }
+
+  .node-subtext {
+    font-size: 1.05rem;
+  }
+
+  #battery-va {
+    font-size: 1.25rem !important;
+    margin-top: 4px;
+  }
+}
+
+/* Touch Landscape: Spread 3 cards horizontally across full screen width & height */
+@media (pointer: coarse) and (orientation: landscape), (hover: none) and (orientation: landscape) {
+  .flow-container {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr auto 1fr;
+    grid-template-rows: 1fr;
+    align-items: stretch;
+    gap: 1rem;
+    height: 100%;
+    flex: 1;
+    padding: 0;
+  }
+
+  .flow-connector {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 36px;
+    height: 100%;
+    margin: 0;
+    transform: none;
+  }
+
+  .flow-line {
+    width: 100%;
+    height: 4px;
+    background: #28354f;
+    border-radius: 2px;
+  }
+
+  .flow-node {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 1.5rem 1rem;
+    border-radius: 16px;
+    height: 100%;
+  }
+
+  .node-icon {
+    font-size: 3.5rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .node-label {
+    font-size: 1.25rem;
+    font-weight: 700;
+  }
+
+  .node-value {
+    font-size: 3.6rem;
+    font-size: clamp(2.8rem, 5vw, 4.4rem);
+    font-weight: 800;
+    margin: 0.5rem 0;
+  }
+
+  .node-subtext {
+    font-size: 1.15rem;
+  }
+
+  #battery-va {
+    font-size: 1.35rem !important;
+    margin-top: 4px;
   }
 }
 
