@@ -48,6 +48,9 @@ class TelemetrySnapshot(BaseModel):
     # AC Distribution & Consumption
     load_power_watts: float = 0.0      # Household / farm electrical load
     grid_gen_power_watts: float = 0.0  # Generator or grid power input
+    generator_volts: float = 0.0       # Generator voltage at SI6048 Gen In
+    generator_amps: float = 0.0        # Generator current
+    generator_frequency: float = 0.0   # Generator AC frequency
     ac_frequency_hz: float = 60.0
     ac_voltage_volts: float = 120.0
 

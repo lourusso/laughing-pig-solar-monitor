@@ -589,12 +589,12 @@ document.addEventListener("DOMContentLoaded", () => {
       <div class="stat-card">
         <div class="stat-header">
           <span class="stat-title">EXTERNAL INPUT / GEN</span>
-          <span class="stat-badge">Generator</span>
+          <span class="stat-badge">${(d.grid_gen_power_watts || 0) > 25 ? 'RUNNING' : 'STANDBY'}</span>
         </div>
-        <div class="stat-main" style="color: #10b981;">${(d.grid_gen_power_watts || 0).toFixed(0)} W</div>
+        <div class="stat-main" style="color: var(--gen-color, #06b6d4);">${(d.grid_gen_power_watts || 0).toFixed(0)} W</div>
         <div class="stat-footer">
-          <span>Auto-Start: Ready</span>
-          <span>Status: Disconnected</span>
+          <span>Voltage: ${(d.generator_voltage || d.ac_voltage || 120).toFixed(1)} V</span>
+          <span>Status: ${(d.grid_gen_power_watts || 0) > 25 ? 'Supplying / Charging' : 'Standby'}</span>
         </div>
       </div>
     `;
@@ -624,9 +624,9 @@ document.addEventListener("DOMContentLoaded", () => {
             <span class="param-sub">WebBox Channel: Fac</span>
           </div>
           <div class="param-card">
-            <span class="param-label">External Input / Gen</span>
-            <span class="param-val">${(d.grid_gen_power_watts || 0).toFixed(0)} W</span>
-            <span class="param-sub">WebBox Channel: TotExtPwrAt</span>
+            <span class="param-label">Generator Input Power</span>
+            <span class="param-val" style="color: var(--gen-color, #06b6d4);">${(d.grid_gen_power_watts || 0).toFixed(0)} W</span>
+            <span class="param-sub">WebBox Channel: TotExtPwrAt (${(d.generator_voltage || d.ac_voltage || 120).toFixed(1)}V · ${(d.generator_current || 0).toFixed(1)}A)</span>
           </div>
         </div>
       </section>

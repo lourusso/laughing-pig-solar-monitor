@@ -6,6 +6,45 @@ function coalesce(val, fallback) {
   return (val !== undefined && val !== null) ? val : fallback;
 }
 
+// Update power flow connector animation, speed, and directional indicator
+function updateFlowConnector(connId, streamId, arrowId, watts, direction, streamColorClass) {
+  const conn = document.getElementById(connId);
+  const stream = document.getElementById(streamId);
+  const arrow = document.getElementById(arrowId);
+  if (!conn || !stream) return;
+
+  if (watts < 15 || direction === 0) {
+    conn.className = conn.className.replace(/\bflow-dir-\S+/g, "").trim() + " flow-dir-idle";
+    stream.className = "flow-stream " + streamColorClass + " flow-idle";
+    if (arrow) {
+      arrow.className = "flow-direction-indicator idle";
+    }
+    return;
+  }
+
+  // Calculate animation speed based on power wattage
+  var speed = 1.4;
+  if (watts > 2500) speed = 0.65;
+  else if (watts > 1200) speed = 0.85;
+  else if (watts > 400) speed = 1.1;
+
+  stream.style.setProperty("--flow-speed", speed + "s");
+
+  if (direction > 0) {
+    conn.className = conn.className.replace(/\bflow-dir-\S+/g, "").trim() + " flow-dir-fwd";
+    stream.className = "flow-stream " + streamColorClass + " flow-fwd";
+    if (arrow) {
+      arrow.className = "flow-direction-indicator active";
+    }
+  } else {
+    conn.className = conn.className.replace(/\bflow-dir-\S+/g, "").trim() + " flow-dir-rev";
+    stream.className = "flow-stream " + streamColorClass + " flow-rev";
+    if (arrow) {
+      arrow.className = "flow-direction-indicator active";
+    }
+  }
+}
+
 async function fetchLiveTelemetry() {
   try {
     const res = await fetch("/api/live");
@@ -56,10 +95,25 @@ async function fetchLiveTelemetry() {
     if (batVoltsEl) batVoltsEl.textContent = `${batVolts} V`;
     if (batDetails) batDetails.textContent = `${batWatts > 0 ? "+" : ""}${batWatts} W (${signAmps} A)`;
     
+    // Generator Telemetry
+    const genWatts = Math.round(coalesce(data.grid_gen_power_watts, 0));
+    const genVolts = Number(coalesce(data.generator_volts, coalesce(data.ac_voltage_volts, 120))).toFixed(1);
+    var rawGenAmps = coalesce(data.generator_amps, (genWatts > 0 ? (genWatts / Number(genVolts)) : 0));
+    const genAmps = Number(rawGenAmps || 0).toFixed(1);
+    const genFreq = Number(coalesce(data.generator_frequency, coalesce(data.ac_frequency_hz, 60))).toFixed(1);
+
     if (batWatts > 10) {
       // Charging: Green
       if (batSub) {
-        batSub.textContent = `Charging (${batWatts} W)`;
+        if (genWatts > 50 && totalPv > 50) {
+          batSub.textContent = `Charging from Gen & Solar (${batWatts} W)`;
+        } else if (genWatts > 50) {
+          batSub.textContent = `Charging from Generator (${batWatts} W)`;
+        } else if (totalPv > 50) {
+          batSub.textContent = `Charging from Solar (${batWatts} W)`;
+        } else {
+          batSub.textContent = `Charging (${batWatts} W)`;
+        }
         batSub.style.color = "#22c55e";
       }
       if (batDetails) batDetails.style.color = "#22c55e";
@@ -88,6 +142,50 @@ async function fetchLiveTelemetry() {
     if (loadPowerEl) loadPowerEl.textContent = `${loadWatts} W`;
     const loadSubEl = document.getElementById("load-sub");
     if (loadSubEl) loadSubEl.textContent = `${(data.ac_voltage_volts || 120).toFixed(1)}V @ ${(data.ac_frequency_hz || 60).toFixed(2)}Hz`;
+
+    // Generator Flow Node
+    const genPowerEl = document.getElementById("gen-power");
+    if (genPowerEl) genPowerEl.textContent = `${genWatts} W`;
+    const genSubEl = document.getElementById("gen-sub");
+    if (genSubEl) {
+      if (genWatts > 25) {
+        genSubEl.textContent = `${genVolts}V · ${genAmps}A @ ${genFreq}Hz · Running`;
+        genSubEl.style.color = "var(--gen-color, #06b6d4)";
+      } else {
+        genSubEl.textContent = "SI6048 Gen Input (Standby)";
+        genSubEl.style.color = "#94a3b8";
+      }
+    }
+
+    // Dynamic Power Flow Connectors (Directional & Proportional Speed)
+    // 1. Solar PV Flow -> Battery / System
+    updateFlowConnector("conn-solar", "stream-solar", "arrow-solar", totalPv, totalPv > 15 ? 1 : 0, "solar-stream");
+
+    // 2. Generator Flow -> Battery / System
+    updateFlowConnector("conn-gen", "stream-gen", "arrow-gen", genWatts, genWatts > 25 ? 1 : 0, "gen-stream");
+
+    // 3. System / Battery Flow -> Household Loads
+    updateFlowConnector("conn-load", "stream-load", "arrow-load", loadWatts, loadWatts > 15 ? 1 : 0, "load-stream");
+
+    // Generator Card in Metrics Grid (if visible)
+    const genCardPowerEl = document.getElementById("gen-card-power");
+    if (genCardPowerEl) genCardPowerEl.textContent = `${genWatts} W`;
+    const genCardVaEl = document.getElementById("gen-card-va");
+    if (genCardVaEl) genCardVaEl.textContent = `${genVolts} V (${genAmps} A)`;
+    const genCardStatusEl = document.getElementById("gen-card-status");
+    if (genCardStatusEl) genCardStatusEl.textContent = genWatts > 25 ? "Running / Supplying" : "Standby";
+    const genCardBadgeEl = document.getElementById("gen-card-badge");
+    if (genCardBadgeEl) {
+      if (genWatts > 25) {
+        genCardBadgeEl.textContent = "ACTIVE";
+        genCardBadgeEl.style.backgroundColor = "rgba(6, 182, 212, 0.15)";
+        genCardBadgeEl.style.color = "var(--gen-color, #06b6d4)";
+      } else {
+        genCardBadgeEl.textContent = "STANDBY";
+        genCardBadgeEl.style.backgroundColor = "";
+        genCardBadgeEl.style.color = "";
+      }
+    }
 
     // MidNite Classic #1 Details
     const c1Power = Math.round(coalesce(data.classic1_power_watts, data.pv_dc_power_watts || 0));
@@ -202,6 +300,18 @@ async function fetchLiveTelemetry() {
       }
     }
 
+    const pGen = document.getElementById("pill-gen");
+    if (pGen) {
+      const lblGen = pGen.querySelector("span:last-child");
+      if (genWatts > 25) {
+        pGen.classList.add("online");
+        if (lblGen) lblGen.textContent = `Gen: ${genWatts} W`;
+      } else {
+        pGen.classList.remove("online");
+        if (lblGen) lblGen.textContent = "Gen: Standby";
+      }
+    }
+
   } catch (err) {
     console.error("Failed to fetch live telemetry:", err);
   }
@@ -227,6 +337,7 @@ async function loadHistoryCharts() {
     const c2Data = history.map(h => Math.round(h.classic2_power_watts || 0));
     const loadData = history.map(h => Math.round(h.load_power_watts || 0));
     const batteryData = history.map(h => Math.round(h.battery_power_watts || 0));
+    const genData = history.map(h => Math.round(coalesce(h.grid_gen_power_watts, 0)));
     const socData = history.map(h => Math.round(h.battery_soc || 0));
 
     // Power Chart
@@ -286,6 +397,16 @@ async function loadHistoryCharts() {
             borderWidth: 1.5,
             borderDash: [4, 4],
             tension: 0.3,
+            pointRadius: 0
+          },
+          {
+            label: "Generator (W)",
+            data: genData,
+            borderColor: "#06b6d4",
+            backgroundColor: "rgba(6, 182, 212, 0.08)",
+            fill: false,
+            tension: 0.3,
+            borderWidth: 1.5,
             pointRadius: 0
           }
         ]

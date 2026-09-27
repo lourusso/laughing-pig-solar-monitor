@@ -9,7 +9,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="theme-color" content="#090d16">
   <title>Laughing Pig Solar Monitor</title>
-  <link rel="stylesheet" href="/static/css/style.css?v=1.5.0">
+  <link rel="stylesheet" href="/static/css/style.css?v=1.6.0">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
@@ -39,6 +39,10 @@
           <span class="pill-dot"></span>
           <span>SB4000: Checking...</span>
         </div>
+        <div id="pill-gen" class="pill" onclick="window.location.href='/device/sunny-island'" style="cursor: pointer;" title="Click to view Generator & Sunny Island SI6048 details">
+          <span class="pill-dot"></span>
+          <span>Gen: Standby</span>
+        </div>
       </div>
     </div>
   </header>
@@ -56,9 +60,28 @@
           <div id="solar-breakdown" class="node-subtext">DC: --W | AC: --W</div>
         </div>
 
-        <!-- Connector to Battery / Inverter -->
-        <div class="flow-connector">
-          <div class="flow-line"></div>
+        <!-- Connector: Solar to Battery -->
+        <div class="flow-connector solar-conn" id="conn-solar" title="Solar PV Power Flow">
+          <div class="flow-line horizontal">
+            <div class="flow-stream solar-stream flow-idle" id="stream-solar"></div>
+          </div>
+          <div class="flow-direction-indicator" id="arrow-solar"></div>
+        </div>
+
+        <!-- Generator Input Node -->
+        <div class="flow-node generator" onclick="window.location.href='/device/sunny-island'" style="cursor: pointer;" title="Click to view Generator & Sunny Island SI6048 telemetry">
+          <div class="node-icon">⚡</div>
+          <div class="node-label">Generator <span class="card-arrow">↗</span></div>
+          <div id="gen-power" class="node-value" style="color: var(--gen-color, #06b6d4);">-- W</div>
+          <div id="gen-sub" class="node-subtext">SI6048 Gen Input</div>
+        </div>
+
+        <!-- Connector: Generator to Battery -->
+        <div class="flow-connector gen-conn" id="conn-gen" title="Generator Power Flow">
+          <div class="flow-line horizontal">
+            <div class="flow-stream gen-stream flow-idle" id="stream-gen"></div>
+          </div>
+          <div class="flow-direction-indicator" id="arrow-gen"></div>
         </div>
 
         <!-- Energy Storage Node -->
@@ -70,9 +93,12 @@
           <div id="battery-sub" class="node-subtext">Monitoring...</div>
         </div>
 
-        <!-- Connector to Loads -->
-        <div class="flow-connector">
-          <div class="flow-line"></div>
+        <!-- Connector: Battery to Loads -->
+        <div class="flow-connector load-conn" id="conn-load" title="Household Load Power Flow">
+          <div class="flow-line horizontal">
+            <div class="flow-stream load-stream flow-idle" id="stream-load"></div>
+          </div>
+          <div class="flow-direction-indicator" id="arrow-load"></div>
         </div>
 
         <!-- Load Consumption Node -->
@@ -128,6 +154,19 @@
         </div>
       </div>
 
+      <!-- Generator / External Input Card -->
+      <div class="stat-card clickable-card" onclick="window.location.href='/device/sunny-island'" title="Click to inspect Sunny Island 6048 & Generator telemetry">
+        <div class="stat-header">
+          <span class="stat-title">GENERATOR (SI6048 GEN IN) <span class="card-arrow">↗</span></span>
+          <span id="gen-card-badge" class="stat-badge">--</span>
+        </div>
+        <div id="gen-card-power" class="stat-main">-- W</div>
+        <div class="stat-footer">
+          <span>In: <span id="gen-card-va">-- V</span></span>
+          <span>Status: <span id="gen-card-status">Standby</span></span>
+        </div>
+      </div>
+
     </section>
 
     <!-- Historical Telemetry Charts -->
@@ -152,6 +191,6 @@
     </section>
   </main>
 
-  <script src="/static/js/dashboard.js?v=1.4.0"></script>
+  <script src="/static/js/dashboard.js?v=1.6.0"></script>
 </body>
 </html>

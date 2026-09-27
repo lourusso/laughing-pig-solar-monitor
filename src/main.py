@@ -179,6 +179,9 @@ class SolarMonitorService:
 
             load_power_watts=float(si_data.get("load_power_watts", 0.0)),
             grid_gen_power_watts=float(si_data.get("grid_gen_power_watts", 0.0)),
+            generator_volts=float(si_data.get("generator_voltage", 0.0)),
+            generator_amps=float(si_data.get("generator_current", 0.0)),
+            generator_frequency=float(si_data.get("generator_frequency", 0.0)),
             ac_frequency_hz=float(si_data.get("ac_frequency", 60.0)),
             ac_voltage_volts=float(si_data.get("ac_voltage", 120.0)),
 
@@ -329,7 +332,7 @@ class SolarMonitorService:
                 "channels": raw_channels
             }
 
-        elif dev in ("sunny-island", "si", "households", "household", "loads", "load"):
+        elif dev in ("sunny-island", "si", "households", "household", "loads", "load", "generator", "gen"):
             si = self._latest_webbox_full.get("sunny_island", {})
             if not si or not si.get("load_power_watts"):
                 snap = self.db.get_latest_snapshot()
@@ -339,6 +342,9 @@ class SolarMonitorService:
                         "inverter_power_watts": snap.get("load_power_watts", 0.0),
                         "load_power_watts": snap.get("load_power_watts", 0.0),
                         "grid_gen_power_watts": snap.get("grid_gen_power_watts", 0.0),
+                        "generator_voltage": snap.get("generator_volts", 0.0),
+                        "generator_current": snap.get("generator_amps", 0.0),
+                        "generator_frequency": snap.get("generator_frequency", 0.0),
                         "ac_voltage": snap.get("ac_voltage_volts", 120.0),
                         "ac_frequency": snap.get("ac_frequency_hz", 60.0),
                         "raw_channels": []

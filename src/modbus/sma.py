@@ -110,10 +110,22 @@ class SMAWebBox:
 
             # External / Grid Power (TotExtPwrAt in kW -> Watts)
             ext_pwr_kw = safe_float(si_channels.get("TotExtPwrAt"), 0.0)
+            if ext_pwr_kw == 0.0:
+                ext_pwr_kw = safe_float(si_channels.get("ExtPwrAt"), 0.0)
             ext_pwr_watts = round(ext_pwr_kw * 1000.0, 1)
 
             ac_volts = safe_float(si_channels.get("Vac"), 120.0)
             ac_freq = safe_float(si_channels.get("Fac"), 60.0)
+
+            ext_volts = safe_float(si_channels.get("ExtVtg"), 0.0)
+            if ext_volts == 0.0 and ext_pwr_watts > 0:
+                ext_volts = ac_volts
+            ext_amps = safe_float(si_channels.get("TotExtCur") or si_channels.get("ExtCur"), 0.0)
+            if ext_amps == 0.0 and ext_pwr_watts > 0 and ext_volts > 0:
+                ext_amps = round(ext_pwr_watts / ext_volts, 1)
+            ext_freq = safe_float(si_channels.get("ExtFrq"), 0.0)
+            if ext_freq == 0.0 and ext_pwr_watts > 0:
+                ext_freq = ac_freq
 
             # --- Parse Sunny Boy 4000 (AC PV Generation) ---
             sb_power_watts = safe_float(sb_channels.get("Pac"), 0.0)
@@ -145,6 +157,9 @@ class SMAWebBox:
                     "inverter_power_watts": inv_pwr_watts,
                     "load_power_watts": abs(lod_pwr_watts) if lod_pwr_watts != 0 else abs(inv_pwr_watts),
                     "grid_gen_power_watts": ext_pwr_watts,
+                    "generator_voltage": ext_volts,
+                    "generator_current": ext_amps,
+                    "generator_frequency": ext_freq,
                     "ac_voltage": ac_volts,
                     "ac_frequency": ac_freq,
                     "raw_channels": si_raw_channels

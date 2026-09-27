@@ -74,6 +74,9 @@ class Database:
                 ("classic2_stage", "TEXT DEFAULT 'OFFLINE'"),
                 ("classic2_online", "INTEGER DEFAULT 0"),
                 ("sunnyboy_online", "INTEGER DEFAULT 0"),
+                ("generator_volts", "REAL DEFAULT 0.0"),
+                ("generator_amps", "REAL DEFAULT 0.0"),
+                ("generator_frequency", "REAL DEFAULT 0.0"),
             ]
             for col_name, col_def in classic_cols:
                 try:
@@ -107,9 +110,10 @@ class Database:
                 pv_ac_power_watts, pv_ac_volts, pv_ac_total_kwh,
                 total_pv_power_watts, battery_soc, battery_soh, battery_volts,
                 battery_amps, battery_power_watts, battery_temp_c, load_power_watts,
-                grid_gen_power_watts, ac_frequency_hz, ac_voltage_volts,
+                grid_gen_power_watts, generator_volts, generator_amps, generator_frequency,
+                ac_frequency_hz, ac_voltage_volts,
                 classic_online, webbox_online, sunnyboy_online, warnings
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
         """
         try:
             with self._get_connection() as conn:
@@ -147,6 +151,9 @@ class Database:
                     snapshot.battery_temp_c,
                     snapshot.load_power_watts,
                     snapshot.grid_gen_power_watts,
+                    snapshot.generator_volts,
+                    snapshot.generator_amps,
+                    snapshot.generator_frequency,
                     snapshot.ac_frequency_hz,
                     snapshot.ac_voltage_volts,
                     1 if snapshot.classic_online else 0,
