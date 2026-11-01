@@ -9,7 +9,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="theme-color" content="#090d16">
   <title>Laughing Pig Solar Monitor</title>
-  <link rel="stylesheet" href="/static/css/style.css?v=1.6.1">
+  <link rel="stylesheet" href="/static/css/style.css?v=1.6.2">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="dashboard-page">
@@ -84,13 +84,57 @@
           <div class="flow-direction-indicator" id="arrow-gen"></div>
         </div>
 
-        <!-- Energy Storage Node -->
-        <div class="flow-node battery" onclick="window.location.href='/device/battery'" style="cursor: pointer;" title="Click to view Discover Battery (LYNK II) telemetry">
-          <div class="node-icon">🔋</div>
-          <div class="node-label">Discover Battery <span class="card-arrow">↗</span></div>
-          <div id="battery-soc" class="node-value" style="color: var(--battery-color);">--%</div>
-          <div id="battery-va" class="node-subtext" style="font-weight: 600; font-size: 0.85rem; color: var(--text-main); margin-top: 2px;">-- V | -- A</div>
-          <div id="battery-sub" class="node-subtext">Monitoring...</div>
+        <!-- Energy Storage Node: Option 2 Rich Card with visual gauge & telemetry triad -->
+        <div class="flow-node battery rich-card" onclick="window.location.href='/device/battery'" style="cursor: pointer;" title="Click to view Discover Battery (LYNK II) telemetry">
+          <div class="node-header">
+            <span class="node-icon">🔋</span>
+            <span class="node-label">Discover Battery <span class="card-arrow">↗</span></span>
+          </div>
+
+          <!-- Visual Battery Charge Level Gauge -->
+          <div class="bat-gauge-container" title="Battery State of Charge">
+            <div class="bat-gauge-body">
+              <div class="bat-gauge-fill" id="bat-gauge-fill" style="width: 100%;"></div>
+              <div class="bat-gauge-dividers">
+                <span></span><span></span><span></span>
+              </div>
+            </div>
+            <div class="bat-gauge-cap"></div>
+          </div>
+
+          <!-- Hero SOC Value -->
+          <div id="battery-soc" class="node-value bat-hero-val" style="color: var(--battery-color);">--%</div>
+
+          <!-- Flow Status Indicator Pill -->
+          <div id="battery-pill" class="flow-status-pill pill-idle">
+            <span class="pill-pulse"></span>
+            <span id="battery-pill-text">Monitoring...</span>
+          </div>
+
+          <!-- 3-Tile Telemetry Triad -->
+          <div class="telemetry-triad">
+            <div class="telemetry-tile">
+              <span class="triad-label">VOLTAGE</span>
+              <span class="triad-val" id="bat-volts-val">-- V</span>
+            </div>
+            <div class="telemetry-tile">
+              <span class="triad-label">NET AMPS</span>
+              <span class="triad-val" id="bat-amps-val">-- A</span>
+            </div>
+            <div class="telemetry-tile">
+              <span class="triad-label">CELL TEMP</span>
+              <span class="triad-val" id="bat-temp-val">-- °C</span>
+            </div>
+          </div>
+
+          <!-- System Link Footer -->
+          <div class="node-system-footer">
+            <span id="bat-soh-text">LYNK II CAN Closed-Loop</span>
+          </div>
+
+          <!-- Preserved legacy elements for backward compatibility -->
+          <div id="battery-va" style="display: none;"></div>
+          <div id="battery-sub" style="display: none;"></div>
         </div>
 
         <!-- Connector: Battery to Loads -->
@@ -101,12 +145,52 @@
           <div class="flow-direction-indicator" id="arrow-load"></div>
         </div>
 
-        <!-- Load Consumption Node -->
-        <div class="flow-node load" onclick="window.location.href='/device/sunny-island'" style="cursor: pointer;" title="Click to inspect Sunny Island 6048 & Household Loads telemetry">
-          <div class="node-icon">🏡</div>
-          <div class="node-label">Household Loads <span class="card-arrow">↗</span></div>
-          <div id="load-power" class="node-value" style="color: var(--load-color);">-- W</div>
-          <div id="load-sub" class="node-subtext">120V @ 60.0Hz</div>
+        <!-- Load Consumption Node: Option 2 Rich Card with capacity meter & telemetry triad -->
+        <div class="flow-node load rich-card" onclick="window.location.href='/device/sunny-island'" style="cursor: pointer;" title="Click to inspect Sunny Island 6048 & Household Loads telemetry">
+          <div class="node-header">
+            <span class="node-icon">🏡</span>
+            <span class="node-label">Household Loads <span class="card-arrow">↗</span></span>
+          </div>
+
+          <!-- Inverter Capacity Meter -->
+          <div class="load-gauge-container" title="SI6048 Inverter Load Capacity (6kW Continuous)">
+            <div class="load-gauge-body">
+              <div class="load-gauge-fill" id="load-gauge-fill" style="width: 8%;"></div>
+            </div>
+          </div>
+
+          <!-- Hero Load Power Readout -->
+          <div id="load-power" class="node-value load-hero-val" style="color: var(--load-color);">-- W</div>
+
+          <!-- Inverter Draw Status Pill -->
+          <div id="load-pill" class="flow-status-pill pill-load">
+            <span class="pill-pulse"></span>
+            <span id="load-pill-text">Normal Load</span>
+          </div>
+
+          <!-- 3-Tile Telemetry Triad -->
+          <div class="telemetry-triad">
+            <div class="telemetry-tile">
+              <span class="triad-label">AC VOLTAGE</span>
+              <span class="triad-val" id="load-volts-val">-- V</span>
+            </div>
+            <div class="telemetry-tile">
+              <span class="triad-label">FREQUENCY</span>
+              <span class="triad-val" id="load-freq-val">-- Hz</span>
+            </div>
+            <div class="telemetry-tile">
+              <span class="triad-label">AC CURRENT</span>
+              <span class="triad-val" id="load-amps-val">-- A</span>
+            </div>
+          </div>
+
+          <!-- System Link Footer -->
+          <div class="node-system-footer">
+            <span id="load-footer-text">SMA Sunny Island 6048-US</span>
+          </div>
+
+          <!-- Preserved legacy element for backward compatibility -->
+          <div id="load-sub" style="display: none;"></div>
         </div>
       </div>
     </section>
@@ -191,6 +275,6 @@
     </section>
   </main>
 
-  <script src="/static/js/dashboard.js?v=1.6.0"></script>
+  <script src="/static/js/dashboard.js?v=1.6.2"></script>
 </body>
 </html>

@@ -136,12 +136,134 @@ async function fetchLiveTelemetry() {
       if (batSoc) batSoc.style.color = "var(--battery-color)";
     }
 
+    // --- Option 2: Discover Battery Rich Card Telemetry ---
+    // 1. Visual SOC Bar Gauge (fill width & dynamic color)
+    const batGaugeFill = document.getElementById("bat-gauge-fill");
+    if (batGaugeFill) {
+      const clampedSoc = Math.max(3, Math.min(100, soc));
+      batGaugeFill.style.width = `${clampedSoc}%`;
+      if (soc > 40) {
+        batGaugeFill.style.background = "linear-gradient(90deg, #16a34a, #22c55e)";
+        batGaugeFill.style.boxShadow = "0 0 10px rgba(34, 197, 94, 0.4)";
+      } else if (soc > 20) {
+        batGaugeFill.style.background = "linear-gradient(90deg, #d97706, #f59e0b)";
+        batGaugeFill.style.boxShadow = "0 0 10px rgba(245, 158, 11, 0.4)";
+      } else {
+        batGaugeFill.style.background = "linear-gradient(90deg, #dc2626, #ef4444)";
+        batGaugeFill.style.boxShadow = "0 0 10px rgba(239, 68, 68, 0.4)";
+      }
+    }
+
+    // 2. Battery Flow Pill
+    const batPill = document.getElementById("battery-pill");
+    const batPillText = document.getElementById("battery-pill-text");
+    if (batPill && batPillText) {
+      if (batWatts > 10) {
+        batPill.className = "flow-status-pill pill-charge";
+        batPillText.textContent = `CHARGING +${batWatts} W`;
+      } else if (batWatts < -10) {
+        batPill.className = "flow-status-pill pill-discharge";
+        batPillText.textContent = `DISCHARGING ${Math.abs(batWatts)} W`;
+      } else {
+        batPill.className = "flow-status-pill pill-idle";
+        batPillText.textContent = "IDLE / STANDBY";
+      }
+    }
+
+    // 3. Battery Telemetry Triad (Voltage, Net Current, Cell Temperature)
+    const batVoltsVal = document.getElementById("bat-volts-val");
+    if (batVoltsVal) batVoltsVal.textContent = `${batVolts} V`;
+
+    const batAmpsVal = document.getElementById("bat-amps-val");
+    if (batAmpsVal) {
+      batAmpsVal.textContent = `${signAmps} A`;
+      if (numAmps > 0.1) {
+        batAmpsVal.style.color = "#22c55e";
+      } else if (numAmps < -0.1) {
+        batAmpsVal.style.color = "#ef4444";
+      } else {
+        batAmpsVal.style.color = "#f1f5f9";
+      }
+    }
+
+    const batTempVal = document.getElementById("bat-temp-val");
+    if (batTempVal) {
+      if (data.battery_temp_c !== undefined && data.battery_temp_c !== null) {
+        batTempVal.textContent = `${Number(data.battery_temp_c).toFixed(1)} °C`;
+      } else {
+        batTempVal.textContent = "-- °C";
+      }
+    }
+
+    // 4. Battery System Link Footer (Closed loop status and SOH)
+    const batSohText = document.getElementById("bat-soh-text");
+    if (batSohText) {
+      if (data.battery_soh !== undefined && data.battery_soh !== null) {
+        batSohText.textContent = `LYNK II CAN · SOH ${Math.round(data.battery_soh)}%`;
+      } else {
+        batSohText.textContent = "LYNK II CAN Closed-Loop";
+      }
+    }
+
     // Household Loads
     const loadWatts = Math.round(data.load_power_watts || 0);
     const loadPowerEl = document.getElementById("load-power");
     if (loadPowerEl) loadPowerEl.textContent = `${loadWatts} W`;
     const loadSubEl = document.getElementById("load-sub");
     if (loadSubEl) loadSubEl.textContent = `${(data.ac_voltage_volts || 120).toFixed(1)}V @ ${(data.ac_frequency_hz || 60).toFixed(2)}Hz`;
+
+    // --- Option 2: Household Loads Rich Card Telemetry ---
+    // 1. Inverter Capacity Meter (Relative to 6000W continuous rating of SI 6048)
+    const loadGaugeFill = document.getElementById("load-gauge-fill");
+    const loadCapacityPct = Math.round((loadWatts / 6000) * 100);
+    if (loadGaugeFill) {
+      const clampedLoadPct = Math.max(3, Math.min(100, loadCapacityPct));
+      loadGaugeFill.style.width = `${clampedLoadPct}%`;
+      if (loadCapacityPct > 80) {
+        loadGaugeFill.style.background = "linear-gradient(90deg, #dc2626, #ef4444)";
+        loadGaugeFill.style.boxShadow = "0 0 10px rgba(239, 68, 68, 0.4)";
+      } else if (loadCapacityPct > 50) {
+        loadGaugeFill.style.background = "linear-gradient(90deg, #d97706, #f59e0b)";
+        loadGaugeFill.style.boxShadow = "0 0 10px rgba(245, 158, 11, 0.4)";
+      } else {
+        loadGaugeFill.style.background = "linear-gradient(90deg, #0284c7, #38bdf8)";
+        loadGaugeFill.style.boxShadow = "0 0 10px rgba(56, 189, 248, 0.4)";
+      }
+    }
+
+    // 2. Household Load Status Pill
+    const loadPill = document.getElementById("load-pill");
+    const loadPillText = document.getElementById("load-pill-text");
+    if (loadPill && loadPillText) {
+      if (loadWatts > 4500) {
+        loadPill.className = "flow-status-pill pill-discharge";
+        loadPillText.textContent = `HEAVY DRAW · ${loadCapacityPct}% CAP`;
+      } else if (loadWatts > 1800) {
+        loadPill.className = "flow-status-pill pill-amber";
+        loadPillText.textContent = `MODERATE DRAW · ${loadCapacityPct}% CAP`;
+      } else if (loadWatts > 50) {
+        loadPill.className = "flow-status-pill pill-load";
+        loadPillText.textContent = `LIGHT DRAW · ${loadCapacityPct}% CAP`;
+      } else {
+        loadPill.className = "flow-status-pill pill-idle";
+        loadPillText.textContent = "MINIMAL DRAW";
+      }
+    }
+
+    // 3. Load Telemetry Triad (AC Volts, Frequency, AC Current)
+    const acVoltsNum = Number(coalesce(data.ac_voltage_volts, 120));
+    const acFreqNum = Number(coalesce(data.ac_frequency_hz, 60));
+    const loadVoltsVal = document.getElementById("load-volts-val");
+    if (loadVoltsVal) loadVoltsVal.textContent = `${acVoltsNum.toFixed(1)} V`;
+
+    const loadFreqVal = document.getElementById("load-freq-val");
+    if (loadFreqVal) loadFreqVal.textContent = `${acFreqNum.toFixed(2)} Hz`;
+
+    const loadAmpsVal = document.getElementById("load-amps-val");
+    if (loadAmpsVal) {
+      const loadAmps = acVoltsNum > 0 ? (loadWatts / acVoltsNum).toFixed(1) : "0.0";
+      loadAmpsVal.textContent = `${loadAmps} A`;
+    }
 
     // Generator Flow Node
     const genPowerEl = document.getElementById("gen-power");
