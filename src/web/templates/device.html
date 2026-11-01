@@ -9,7 +9,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="theme-color" content="#090d16">
   <title>Device Telemetry - Laughing Pig Solar Monitor</title>
-  <link rel="stylesheet" href="/static/css/style.css?v=1.6.0">
+  <link rel="stylesheet" href="/static/css/style.css?v=1.6.1">
   <style>
     .device-header {
       display: flex;
@@ -24,27 +24,6 @@
       display: flex;
       flex-direction: column;
       gap: 0.25rem;
-    }
-    .device-nav-back {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.4rem;
-      color: #38bdf8;
-      text-decoration: none;
-      font-size: 0.85rem;
-      font-weight: 600;
-      padding: 0.4rem 0.8rem;
-      border-radius: 6px;
-      background: #1e293b;
-      border: 1px solid #334155;
-      transition: all 0.2s ease;
-      margin-bottom: 0.5rem;
-      width: fit-content;
-    }
-    .device-nav-back:hover {
-      background: #334155;
-      border-color: #475569;
-      color: #fff;
     }
     .device-badges {
       display: flex;
@@ -162,14 +141,16 @@
     }
   </style>
 </head>
-<body>
+<body class="device-page">
   <header>
     <div class="header-inner">
       <div class="header-left">
+        <!-- Friendly Back Button: Always visible on mobile, iPad, and desktop so you can always go home! -->
+        <a href="/" onclick="window.location.href='/'; return false;" class="btn-nav-back" aria-label="Return to Dashboard">← Dashboard</a>
         <span class="logo">🐷⚡</span>
         <div>
           <h1>Laughing Pig Solar Monitor</h1>
-          <p style="font-size: 0.75rem; color: #64748b;">Comprehensive Device Telemetry & Register Inspection</p>
+          <p class="header-subtitle" style="font-size: 0.75rem; color: #64748b;">Comprehensive Device Telemetry & Register Inspection</p>
         </div>
       </div>
       <div class="header-status">
@@ -177,14 +158,11 @@
           <span class="pill-dot"></span>
           <span id="device-status-text">Connecting...</span>
         </div>
-        <a href="/" onclick="window.location.href='/'; return false;" class="btn-export">← Dashboard</a>
       </div>
     </div>
   </header>
 
   <main>
-    <a href="/" onclick="window.location.href='/'; return false;" class="device-nav-back">← Back to Main Dashboard</a>
-
     <!-- Device Header Banner -->
     <div class="device-header">
       <div class="device-title-area">

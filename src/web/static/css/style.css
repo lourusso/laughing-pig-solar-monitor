@@ -109,6 +109,33 @@ header {
   border-color: #475569;
 }
 
+/* Navigation Back Button (Used in sticky header for easy 1-touch return home) */
+.btn-nav-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: #38bdf8;
+  padding: 0.4rem 0.85rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.btn-nav-back:hover,
+.btn-nav-back:active {
+  background: #334155;
+  border-color: #38bdf8;
+  color: #ffffff;
+}
+
 main {
   flex: 1;
   padding: 1.5rem 2rem;
@@ -508,27 +535,28 @@ main {
 
 /* Touchscreen Devices (Phones & Tablets in any orientation) */
 @media (pointer: coarse), (hover: none) {
-  .metrics-grid,
-  .charts-grid,
-  .header-status {
+  /* On the main dashboard, hide extra cards to keep the power flow diagram single-screen */
+  body.dashboard-page .metrics-grid,
+  body.dashboard-page .charts-grid,
+  body.dashboard-page .header-status {
     display: none !important;
   }
 
-  body {
+  body.dashboard-page {
     min-height: 100vh;
     height: 100vh;
     overflow: hidden;
   }
 
-  header {
+  body.dashboard-page header {
     padding: 0;
   }
 
-  .header-inner {
+  body.dashboard-page .header-inner {
     padding: 0.4rem 1rem;
   }
 
-  main {
+  body.dashboard-page main {
     flex: 1;
     padding: 0.5rem 0.75rem;
     height: calc(100vh - 54px);
@@ -537,7 +565,7 @@ main {
     flex-direction: column;
   }
 
-  .powerflow-card {
+  body.dashboard-page .powerflow-card {
     flex: 1;
     height: 100%;
     display: flex;
@@ -547,10 +575,50 @@ main {
     border-radius: 16px;
   }
 
-  .powerflow-title {
+  body.dashboard-page .powerflow-title {
     margin-bottom: 0.25rem;
     font-size: 0.8rem;
     text-align: center;
+  }
+
+  /* On device telemetry detail pages, allow natural scrolling on touch devices */
+  body.device-page {
+    min-height: 100vh;
+    height: auto !important;
+    overflow-x: hidden;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  body.device-page main {
+    flex: none;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 1rem 1rem 3rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+}
+
+/* Small Screens (Narrow phones): Keep header clean and readable */
+@media (max-width: 640px) {
+  .header-subtitle {
+    display: none !important;
+  }
+  .header-inner {
+    padding: 0.4rem 0.75rem;
+  }
+  .header-left {
+    gap: 0.5rem;
+  }
+  .header-left h1 {
+    font-size: 1rem;
+  }
+  .btn-nav-back {
+    padding: 0.35rem 0.65rem;
+    font-size: 0.8rem;
   }
 }
 
