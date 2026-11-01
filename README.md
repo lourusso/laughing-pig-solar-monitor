@@ -9,39 +9,49 @@ Centralized monitoring, telemetry, and data logging system for the **Laughing Pi
 The Laughing Pig Solar Monitor is designed to aggregate real-time telemetry, track system health, and log historical performance across all power generation, storage, and conversion hardware on site.
 
 The monitored setup is a robust hybrid / off-grid solar energy infrastructure featuring:
-- **DC Solar Generation**: MidNite Solar Classic MPPT charge controller(s)
-- **AC Solar Generation**: SMA Sunny Boy string inverter(s) (AC-coupled)
+- **DC Solar Generation**: Dual MidNite Solar Classic MPPT charge controllers (Classic #1 & Classic #2)
+- **AC Solar Generation**: SMA Sunny Boy 4000-US string inverter (AC-coupled, located at Shop, feeding through an autoformer to Main House)
 - **Battery Storage & Power Conditioning**: SMA Sunny Island 4548 / 6048 inverter-charger(s)
 - **Energy Storage System (ESS)**: Discover Lithium battery bank managed via the Discover LYNK II gateway
-- **Field Bus & Communications**: SMA Sunny WebBox (RS485), Modbus TCP/RTU, and CAN interfaces
+- **AC Load & Sub-Panel Monitoring**: eGauge EG3010 multi-channel energy meter monitoring 120V circuits for Main House load (CT S1) and Shop load (CT S3)
+- **Field Bus & Communications**: SMA Sunny WebBox (RS485), Modbus TCP/RTU, CAN interfaces, and eGauge HTTP/XML API
 - **Central Telemetry & Storage**: Synology NAS hosting an MQTT broker, containerized services, and long-term logging
 
 ```mermaid
 flowchart TD
     subgraph Generation ["Power Generation"]
-        PV_DC["PV Array (DC)"] --> Classic["MidNite Solar Classic MPPT"]
-        PV_AC["PV Array (AC)"] --> SunnyBoy["SMA Sunny Boy (3000/3800/4000)"]
+        PV_DC["PV Array (DC)"] --> Classic1["MidNite Classic #1 (.129)"]
+        PV_DC --> Classic2["MidNite Classic #2 (.130)"]
+        PV_AC["PV Array (AC at Shop)"] --> SunnyBoy["SMA Sunny Boy 4000"]
     end
 
     subgraph Storage ["Energy Storage & Management"]
-        Discover["Discover Lithium Battery Bank"] <-->|CANbus| LYNK["Discover LYNK II Gateway"]
-        LYNK <-->|CAN / Closed Loop| SunnyIsland["SMA Sunny Island (4548 / 6048)"]
-        Classic <-->|DC Bus| Discover
+        Discover["Discover Lithium Battery Bank"] <-->|CANbus| LYNK["Discover LYNK II Gateway (.128)"]
+        LYNK <-->|CAN / Closed Loop| SunnyIsland["SMA Sunny Island 6048"]
+        Classic1 <-->|DC Bus| Discover
+        Classic2 <-->|DC Bus| Discover
         SunnyIsland <-->|DC Bus| Discover
     end
 
-    subgraph AC_Bus ["AC Distribution"]
-        SunnyIsland <-->|AC Bus| AC_Load["AC Loads / Generator"]
-        SunnyBoy -->|AC Couple| SunnyIsland
+    subgraph AC_Distribution ["AC Distribution & Sub-Metering"]
+        SunnyBoy -->|240V AC| Autoformer["Autoformer"]
+        Autoformer -->|120V AC Bus| HouseLoads["Main House Loads (120V)"]
+        SunnyIsland <-->|AC Bus| HouseLoads
+        SunnyIsland <-->|AC Bus| ShopLoads["Shop Loads (120V)"]
+        
+        eGauge["eGauge EG3010 (.126)"] -.->|CT S1 (120V 1-cond)| HouseLoads
+        eGauge -.->|CT S3 (120V 1-cond)| ShopLoads
     end
 
     subgraph Comms ["Communications & Monitoring"]
-        WebBox["SMA Sunny WebBox"] ---|RS485| SunnyBoy
+        WebBox["SMA Sunny WebBox (.127)"] ---|RS485| SunnyBoy
         WebBox ---|RS485 / Modbus| SunnyIsland
         
-        Classic -->|Modbus TCP| Collector["Collector Service / Daemon"]
+        Classic1 -->|Modbus TCP| Collector["Collector Service / Daemon"]
+        Classic2 -->|Modbus TCP| Collector
         WebBox -->|Modbus TCP / RPC| Collector
         LYNK -.->|Telemetry / Relays| Collector
+        eGauge -->|HTTP XML API / Modbus| Collector
         
         Collector -->|MQTT Pub| SynoMQTT["Synology NAS (MQTT Broker :1883)"]
         SynoMQTT --> Dashboards["Dashboards / Home Assistant / InfluxDB"]
@@ -54,11 +64,13 @@ flowchart TD
 
 | Component | Role | Network / IP Address | MAC Address & Hardware Info | Interface & Protocol |
 | :--- | :--- | :--- | :--- | :--- |
+| **eGauge EG3010** | AC Energy Meter & Load Sub-Metering | `192.168.42.126`<br>(Static IP) | `F8:2F:5B:01:33:F4`<br>(eGauge Systems LLC) | • HTTP XML/JSON API (`/cgi-bin/egauge?inst`)<br>• CT **S1**: Main House Load (120V, single conductor)<br>• CT **S3**: Shop Load (120V, single conductor; SB4000 located here, passes through autoformer)<br>• Modbus TCP (Port 502) |
 | **SMA Sunny WebBox** | SMA Communications Gateway & Data Logger | `192.168.42.127` | `00:40:AD:29:16:70`<br>(SMA Regelsysteme GmbH) | • HTTP Web UI (Port 80)<br>• Modbus TCP (Port 502, Unit ID `1`)<br>• JSON-RPC API (`/rpc`)<br>• FTP (Port 21), Telnet (Port 23) |
 | **SMA Sunny Island 6048-US** | Battery Inverter-Charger & System Master | Via WebBox (`192.168.42.127`) | Key: `SI6048UM:1260044199`<br>S/N: `1260044199` | • Modbus TCP via WebBox (Port 502, Unit ID `2`)<br>• Direct RS485 Field Bus |
-| **SMA Sunny Boy 4000-US** | AC-coupled PV Inverter | Via WebBox (`192.168.42.127`) | Key: `WR40U08E:2000702586`<br>S/N: `2000702586`<br>(Type: `8007`) | • Modbus TCP via WebBox (Port 502, Unit ID `4`)<br>• RS485 Piggy-Back to WebBox |
+| **SMA Sunny Boy 4000-US** | AC-coupled PV Inverter (Located at Shop) | Via WebBox (`192.168.42.127`) | Key: `WR40U08E:2000702586`<br>S/N: `2000702586`<br>(Type: `8007`) | • Modbus TCP via WebBox (Port 502, Unit ID `4`)<br>• RS485 Piggy-Back to WebBox<br>• Feeds through autoformer to Main House |
 | **Discover LYNK II** | Battery Management & Communications Gateway | `192.168.42.128` | `70:B3:D5:6F:17:A0`<br>(Discover Battery) | • Ethernet / LYNK Access & Cloud<br>• CANopen / SMA CAN to Sunny Island<br>• Programmable Relays |
-| **MidNite Solar Classic** | DC-coupled MPPT Charge Controller | `192.168.42.129` | `60:1D:0F:00:11:32`<br>(Midnite Solar) | • Modbus TCP (Port 502, Unit ID `1`)<br>• Holding registers starting at `4115` |
+| **MidNite Solar Classic #1** | DC-coupled MPPT Charge Controller | `192.168.42.129` | `60:1D:0F:00:11:32`<br>(Midnite Solar) | • Modbus TCP (Port 502, Unit ID `1`)<br>• Holding registers starting at `4115` |
+| **MidNite Solar Classic #2** | DC-coupled MPPT Charge Controller | `192.168.42.130` | `60:1D:0F:00:15:34`<br>(Midnite Solar) | • Modbus TCP (Port 502, Unit ID `1`)<br>• Holding registers starting at `4115` |
 | **Synology NAS** | Central Telemetry Hub & Storage | `192.168.42.184` | `90:09:D0:93:49:B8`<br>(Synology Incorporated) | • **MQTT Broker (Port 1883)**<br>• DSM 7.x Management (Ports 5000 / 5001)<br>• Web Station (Ports 80 / 443)<br>• SSH (Port 22) |
 
 
