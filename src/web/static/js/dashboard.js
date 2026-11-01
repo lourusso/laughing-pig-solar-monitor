@@ -265,6 +265,15 @@ async function fetchLiveTelemetry() {
       loadAmpsVal.textContent = `${loadAmps} A`;
     }
 
+    const loadFooterText = document.getElementById("load-footer-text");
+    if (loadFooterText) {
+      if (data.load_source === "eGauge S1" || data.egauge_online) {
+        loadFooterText.textContent = "eGauge EG3010 · CT S1 (120V)";
+      } else {
+        loadFooterText.textContent = "SMA Sunny Island 6048-US";
+      }
+    }
+
     // Generator Flow Node
     const genPowerEl = document.getElementById("gen-power");
     if (genPowerEl) genPowerEl.textContent = `${genWatts} W`;
@@ -419,6 +428,18 @@ async function fetchLiveTelemetry() {
       } else {
         pSunnyBoy.classList.remove("online");
         if (lblSB) lblSB.textContent = "SB4000: Offline";
+      }
+    }
+
+    const pEgauge = document.getElementById("pill-egauge");
+    if (pEgauge) {
+      const lblEg = pEgauge.querySelector("span:last-child");
+      if (data.egauge_online) {
+        pEgauge.classList.add("online");
+        if (lblEg) lblEg.textContent = "eGauge: Online";
+      } else {
+        pEgauge.classList.remove("online");
+        if (lblEg) lblEg.textContent = "eGauge: Offline";
       }
     }
 

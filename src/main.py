@@ -13,6 +13,7 @@ import uvicorn
 from .config import load_config, AppConfig
 from .storage import Database, TelemetrySnapshot
 from .modbus import MidNiteClassic, SMAWebBox
+from .egauge import EGaugeClient
 from .mqtt import MQTTPublisher
 from .web import create_app
 
@@ -60,6 +61,16 @@ class SolarMonitorService:
                 timeout=config.modbus.timeout_seconds
             )
 
+        # eGauge EG3010 Energy Meter
+        self.egauge = None
+        if hasattr(config, "egauge") and config.egauge.enabled:
+            self.egauge = EGaugeClient(
+                host=config.egauge.host,
+                port=config.egauge.port,
+                timeout=config.egauge.timeout_seconds,
+                mac_address=config.egauge.mac_address
+            )
+
         # MQTT Publisher
         self.mqtt = None
         if config.mqtt.enabled:
@@ -75,6 +86,7 @@ class SolarMonitorService:
         self._latest_webbox_full: Dict[str, Any] = {}
         self._latest_classic_full: Dict[str, Any] = {}
         self._latest_classic2_full: Dict[str, Any] = {}
+        self._latest_egauge_full: Dict[str, Any] = {}
 
         # Quick-memory scratchpad (In-Memory Telemetry Cache):
         # We keep the newest solar snapshot right in fast computer memory (RAM).
@@ -99,13 +111,13 @@ class SolarMonitorService:
         # If a gadget is turned off or unplugged (like Classic #2), we don't want to
         # waste 3 whole seconds waiting on it every single turn!
         # If it doesn't answer 3 times in a row, we give it a 60-second break before trying again.
-        self._device_failures: Dict[str, int] = {"classic1": 0, "classic2": 0, "webbox": 0}
-        self._device_next_retry: Dict[str, float] = {"classic1": 0.0, "classic2": 0.0, "webbox": 0.0}
+        self._device_failures: Dict[str, int] = {"classic1": 0, "classic2": 0, "webbox": 0, "egauge": 0}
+        self._device_next_retry: Dict[str, float] = {"classic1": 0.0, "classic2": 0.0, "webbox": 0.0, "egauge": 0.0}
 
         # Daily database cleaner timer (seconds)
         self._last_prune_time: float = 0.0
 
-        self._pool = ThreadPoolExecutor(max_workers=3)
+        self._pool = ThreadPoolExecutor(max_workers=4)
         self._running = False
         self._poll_thread = None
 
@@ -139,6 +151,8 @@ class SolarMonitorService:
             self.classic2.close()
         if self.webbox:
             self.webbox.close()
+        if self.egauge:
+            self.egauge.close()
         self._pool.shutdown(wait=False)
 
     def poll_once(self) -> TelemetrySnapshot:
@@ -150,15 +164,18 @@ class SolarMonitorService:
         can_poll_c1 = bool(self.classic and (now >= self._device_next_retry.get("classic1", 0.0)))
         can_poll_c2 = bool(self.classic2 and (now >= self._device_next_retry.get("classic2", 0.0)))
         can_poll_wb = bool(self.webbox and (now >= self._device_next_retry.get("webbox", 0.0)))
+        can_poll_eg = bool(self.egauge and (now >= self._device_next_retry.get("egauge", 0.0)))
 
         # Poll active controllers concurrently using worker threads
         fut_c1 = self._pool.submit(self.classic.poll) if can_poll_c1 else None
         fut_c2 = self._pool.submit(self.classic2.poll) if can_poll_c2 else None
         fut_wb = self._pool.submit(self.webbox.poll) if can_poll_wb else None
+        fut_eg = self._pool.submit(self.egauge.poll) if can_poll_eg else None
 
         classic1_data = fut_c1.result() if fut_c1 else (self._latest_classic_full or {})
         classic2_data = fut_c2.result() if fut_c2 else (self._latest_classic2_full or {})
         webbox_data = fut_wb.result() if fut_wb else (self._latest_webbox_full or {})
+        egauge_data = fut_eg.result() if fut_eg else (self._latest_egauge_full or {})
 
         # Check who answered and who is sleeping:
         def update_retry_state(dev_key: str, data: Dict[str, Any]):
@@ -180,13 +197,33 @@ class SolarMonitorService:
             update_retry_state("classic2", classic2_data)
         if can_poll_wb:
             update_retry_state("webbox", webbox_data)
+        if can_poll_eg:
+            update_retry_state("egauge", egauge_data)
 
         self._latest_classic_full = classic1_data
         self._latest_classic2_full = classic2_data
         self._latest_webbox_full = webbox_data
+        self._latest_egauge_full = egauge_data
 
         si_data = webbox_data.get("sunny_island", {})
         sb_data = webbox_data.get("sunny_boy", {})
+
+        # eGauge Sub-Metering Telemetry (CT S1: Main House Load, CT S3: Shop Load)
+        eg_online = bool(egauge_data.get("online"))
+        s1_house_watts = float(egauge_data.get("s1_house_load_watts", 0.0))
+        s3_shop_watts = float(egauge_data.get("s3_shop_load_watts", 0.0))
+        eg_freq = float(egauge_data.get("frequency_hz", 60.0))
+
+        # House Loads: Replace with data from S1 on the eGauge
+        use_s1 = hasattr(self.config, "egauge") and getattr(self.config.egauge, "use_s1_for_house_loads", True)
+        if eg_online and use_s1:
+            active_house_load = s1_house_watts
+            load_source = "eGauge S1"
+        else:
+            active_house_load = float(si_data.get("load_power_watts", 0.0))
+            load_source = "Sunny Island"
+
+        active_freq = eg_freq if (eg_online and eg_freq > 0) else float(si_data.get("ac_frequency", 60.0))
 
         c1_watts = float(classic1_data.get("pv_power_watts", 0.0))
         c2_watts = float(classic2_data.get("pv_power_watts", 0.0))
@@ -247,13 +284,18 @@ class SolarMonitorService:
             battery_power_watts=float(si_data.get("battery_power_watts", 0.0)),
             battery_temp_c=float(si_data.get("battery_temp_c", 25.0)),
 
-            load_power_watts=float(si_data.get("load_power_watts", 0.0)),
+            load_power_watts=active_house_load,
             grid_gen_power_watts=float(si_data.get("grid_gen_power_watts", 0.0)),
             generator_volts=float(si_data.get("generator_voltage", 0.0)),
             generator_amps=float(si_data.get("generator_current", 0.0)),
             generator_frequency=float(si_data.get("generator_frequency", 0.0)),
-            ac_frequency_hz=float(si_data.get("ac_frequency", 60.0)),
+            ac_frequency_hz=active_freq,
             ac_voltage_volts=float(si_data.get("ac_voltage", 120.0)),
+
+            egauge_online=eg_online,
+            house_load_watts=s1_house_watts,
+            shop_load_watts=s3_shop_watts,
+            load_source=load_source,
 
             classic_online=bool(classic1_data.get("online") or classic2_data.get("online")),
             webbox_online=bool(webbox_data.get("online")),
@@ -426,7 +468,7 @@ class SolarMonitorService:
                 "channels": raw_channels
             }
 
-        elif dev in ("sunny-island", "si", "households", "household", "loads", "load", "generator", "gen"):
+        elif dev in ("sunny-island", "si", "generator", "gen"):
             si = self._latest_webbox_full.get("sunny_island", {})
             if not si or not si.get("load_power_watts"):
                 snap = self.db.get_latest_snapshot()
@@ -443,13 +485,31 @@ class SolarMonitorService:
                         "ac_frequency": snap.get("ac_frequency_hz", 60.0),
                         "raw_channels": []
                     }
+            
+            raw_ch = list(si.get("raw_channels", []))
+            # Include eGauge sub-meter readings as companion diagnostic channels if online
+            if self._latest_egauge_full and self._latest_egauge_full.get("online"):
+                eg = self._latest_egauge_full
+                raw_ch.insert(0, {
+                    "meta": "eGauge:S1",
+                    "name": "Main House Load (eGauge CT S1)",
+                    "value": f"{eg.get('s1_house_load_watts', 0.0):.1f}",
+                    "unit": "W"
+                })
+                raw_ch.insert(1, {
+                    "meta": "eGauge:S3",
+                    "name": "Shop Load & SB4000 (eGauge CT S3)",
+                    "value": f"{eg.get('s3_shop_load_watts', 0.0):.1f}",
+                    "unit": "W"
+                })
+
             res = {
                 "device_id": "sunny-island",
                 "device_name": "SMA Sunny Island 6048 & Household Loads",
                 "model": "Sunny Island 6048-US Inverter/Charger",
                 "online": bool(si.get("online")),
                 "data": si,
-                "channels": si.get("raw_channels", [])
+                "channels": raw_ch
             }
 
         elif dev in ("sunny-boy", "sb"):
@@ -461,6 +521,35 @@ class SolarMonitorService:
                 "online": bool(sb.get("online")),
                 "data": sb,
                 "channels": sb.get("raw_channels", [])
+            }
+
+        elif dev in ("egauge", "eg3010", "meter", "submeter", "households", "household", "loads", "load", "main-house", "house-load", "shop-load"):
+            eg = self._latest_egauge_full
+            if not eg or not eg.get("online"):
+                if self.egauge:
+                    try:
+                        eg = self.egauge.poll_full()
+                    except Exception as err:
+                        logger.debug(f"Direct eGauge poll encountered error: {err}")
+            if not eg:
+                snap = self.db.get_latest_snapshot()
+                eg = {
+                    "online": bool(snap.get("egauge_online") if snap else False),
+                    "s1_house_load_watts": snap.get("house_load_watts", 0.0) if snap else 0.0,
+                    "s3_shop_load_watts": snap.get("shop_load_watts", 0.0) if snap else 0.0,
+                    "frequency_hz": snap.get("ac_frequency_hz", 60.0) if snap else 60.0,
+                    "voltage_volts": 120.0,
+                    "raw_registers": []
+                }
+
+            channels = eg.get("channels") or eg.get("raw_registers") or []
+            res = {
+                "device_id": "egauge",
+                "device_name": "eGauge EG3010 Energy Meter",
+                "model": "eGauge EG3010 Multi-Channel Sub-Meter (120V S1 House / S3 Shop)",
+                "online": bool(eg.get("online")),
+                "data": eg,
+                "channels": channels
             }
         else:
             return {"error": f"Unknown device ID: {device_id}"}

@@ -87,6 +87,10 @@ class Database:
                 ("generator_volts", "REAL DEFAULT 0.0"),
                 ("generator_amps", "REAL DEFAULT 0.0"),
                 ("generator_frequency", "REAL DEFAULT 0.0"),
+                ("egauge_online", "INTEGER DEFAULT 0"),
+                ("house_load_watts", "REAL DEFAULT 0.0"),
+                ("shop_load_watts", "REAL DEFAULT 0.0"),
+                ("load_source", "TEXT DEFAULT 'eGauge S1'"),
             ]
             for col_name, col_def in classic_cols:
                 try:
@@ -122,8 +126,10 @@ class Database:
                 battery_amps, battery_power_watts, battery_temp_c, load_power_watts,
                 grid_gen_power_watts, generator_volts, generator_amps, generator_frequency,
                 ac_frequency_hz, ac_voltage_volts,
-                classic_online, webbox_online, sunnyboy_online, warnings
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                classic_online, webbox_online, sunnyboy_online,
+                egauge_online, house_load_watts, shop_load_watts, load_source,
+                warnings
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
         """
         try:
             with self._get_connection() as conn:
@@ -169,6 +175,10 @@ class Database:
                     1 if snapshot.classic_online else 0,
                     1 if snapshot.webbox_online else 0,
                     1 if snapshot.sunnyboy_online else 0,
+                    1 if snapshot.egauge_online else 0,
+                    snapshot.house_load_watts,
+                    snapshot.shop_load_watts,
+                    snapshot.load_source,
                     snapshot.warnings
                 ))
                 conn.commit()

@@ -35,6 +35,14 @@ modbus:
       sunny_island_key: "SI6048UM:1260044199"
       sunny_boy_key: "WR40U08E:2000702586"
 
+egauge:
+  enabled: true
+  host: "192.168.42.126"
+  port: 80
+  timeout_seconds: 3.0
+  mac_address: "F8:2F:5B:01:33:F4"
+  use_s1_for_house_loads: true
+
 mqtt:
   enabled: true
   broker: "192.168.42.184"

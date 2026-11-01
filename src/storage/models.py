@@ -46,13 +46,19 @@ class TelemetrySnapshot(BaseModel):
     battery_temp_c: float = 25.0
 
     # AC Distribution & Consumption
-    load_power_watts: float = 0.0      # Household / farm electrical load
+    load_power_watts: float = 0.0      # Household / farm electrical load (from eGauge CT S1)
     grid_gen_power_watts: float = 0.0  # Generator or grid power input
     generator_volts: float = 0.0       # Generator voltage at SI6048 Gen In
     generator_amps: float = 0.0        # Generator current
     generator_frequency: float = 0.0   # Generator AC frequency
     ac_frequency_hz: float = 60.0
     ac_voltage_volts: float = 120.0
+
+    # eGauge EG3010 Energy Meter
+    egauge_online: bool = False
+    house_load_watts: float = 0.0      # Main House 120V Load (CT S1)
+    shop_load_watts: float = 0.0       # Shop 120V Load (CT S3)
+    load_source: str = "eGauge S1"
 
     # System Health
     classic_online: bool = False

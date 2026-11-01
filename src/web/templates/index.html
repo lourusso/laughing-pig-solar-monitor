@@ -39,6 +39,10 @@
           <span class="pill-dot"></span>
           <span>SB4000: Checking...</span>
         </div>
+        <div id="pill-egauge" class="pill" onclick="window.location.href='/device/egauge'" style="cursor: pointer;" title="Click to view eGauge EG3010 sub-meter details (192.168.42.126)">
+          <span class="pill-dot"></span>
+          <span>eGauge: Checking...</span>
+        </div>
         <div id="pill-gen" class="pill" onclick="window.location.href='/device/sunny-island'" style="cursor: pointer;" title="Click to view Generator & Sunny Island SI6048 details">
           <span class="pill-dot"></span>
           <span>Gen: Standby</span>
@@ -146,7 +150,7 @@
         </div>
 
         <!-- Load Consumption Node: Option 2 Rich Card with capacity meter & telemetry triad -->
-        <div class="flow-node load rich-card" onclick="window.location.href='/device/sunny-island'" style="cursor: pointer;" title="Click to inspect Sunny Island 6048 & Household Loads telemetry">
+        <div class="flow-node load rich-card" onclick="window.location.href='/device/egauge'" style="cursor: pointer;" title="Click to inspect eGauge EG3010 (CT S1 House Load) telemetry">
           <div class="node-header">
             <span class="node-icon">🏡</span>
             <span class="node-label">Household Loads <span class="card-arrow">↗</span></span>
@@ -186,7 +190,7 @@
 
           <!-- System Link Footer -->
           <div class="node-system-footer">
-            <span id="load-footer-text">SMA Sunny Island 6048-US</span>
+            <span id="load-footer-text">eGauge EG3010 · CT S1</span>
           </div>
 
           <!-- Preserved legacy element for backward compatibility -->
@@ -275,6 +279,6 @@
     </section>
   </main>
 
-  <script src="/static/js/dashboard.js?v=1.6.2"></script>
+  <script src="/static/js/dashboard.js?v=1.7.0"></script>
 </body>
 </html>

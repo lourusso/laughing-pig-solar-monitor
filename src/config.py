@@ -45,6 +45,14 @@ class ModbusConfig(BaseModel):
     classic2: Classic2Config = Field(default_factory=Classic2Config)
     sunny_webbox: SunnyWebBoxConfig = Field(default_factory=SunnyWebBoxConfig)
 
+class EGaugeConfig(BaseModel):
+    enabled: bool = True
+    host: str = "192.168.42.126"
+    port: int = 80
+    timeout_seconds: float = 3.0
+    mac_address: str = "F8:2F:5B:01:33:F4"
+    use_s1_for_house_loads: bool = True
+
 class MQTTConfig(BaseModel):
     enabled: bool = True
     broker: str = "192.168.42.184"
@@ -65,6 +73,7 @@ class WebConfig(BaseModel):
 class AppConfig(BaseModel):
     system: SystemConfig = Field(default_factory=SystemConfig)
     modbus: ModbusConfig = Field(default_factory=ModbusConfig)
+    egauge: EGaugeConfig = Field(default_factory=EGaugeConfig)
     mqtt: MQTTConfig = Field(default_factory=MQTTConfig)
     storage: StorageConfig = Field(default_factory=StorageConfig)
     web: WebConfig = Field(default_factory=WebConfig)
@@ -96,6 +105,8 @@ def load_config(config_path: Optional[str] = None) -> AppConfig:
         config.modbus.classic2.host = os.getenv("LPSM_CLASSIC2_HOST")
     if os.getenv("LPSM_WEBBOX_HOST"):
         config.modbus.sunny_webbox.host = os.getenv("LPSM_WEBBOX_HOST")
+    if os.getenv("LPSM_EGAUGE_HOST"):
+        config.egauge.host = os.getenv("LPSM_EGAUGE_HOST")
     if os.getenv("LPSM_MQTT_BROKER"):
         config.mqtt.broker = os.getenv("LPSM_MQTT_BROKER")
     if os.getenv("LPSM_MQTT_PORT"):

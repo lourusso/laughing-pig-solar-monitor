@@ -89,6 +89,8 @@ document.addEventListener("DOMContentLoaded", () => {
       renderMidNiteView(payload, d);
     } else if (dev.includes("battery") || dev.includes("discover") || dev.includes("lynk")) {
       renderDiscoverBatteryView(payload, d);
+    } else if (dev.includes("egauge") || dev.includes("eg3010") || dev.includes("submeter") || dev.includes("meter")) {
+      renderEGaugeView(payload, d);
     } else if (dev.includes("island") || dev.includes("si") || dev.includes("load") || dev.includes("household") || dev.includes("ess")) {
       renderSunnyIslandView(payload, d);
     } else if (dev.includes("boy") || dev.includes("sb")) {
@@ -782,6 +784,156 @@ document.addEventListener("DOMContentLoaded", () => {
       id: c.meta || "--",
       name: c.name || c.meta || "--",
       desc: "Sunny Boy WebBox Process Channel",
+      val: `${c.value !== undefined ? c.value : '--'} ${c.unit || ''}`
+    }));
+
+    renderFilteredTable(diagSearch.value.toLowerCase().trim());
+  }
+
+  // --- EGAUGE EG3010 SUB-METER RENDERER ---
+  function renderEGaugeView(payload, d) {
+    deviceTitle.textContent = "eGauge EG3010 Energy Meter";
+    deviceSubtitle.textContent = `High-Precision Multi-Channel Sub-Meter (${d.ip || "192.168.42.126"})`;
+    badgeModel.textContent = "eGauge EG3010 Core (120V Sub-Metering)";
+    badgeProtocol.textContent = "HTTP XML API (/cgi-bin/egauge)";
+
+    heroGrid.innerHTML = `
+      <div class="stat-card">
+        <div class="stat-header">
+          <span class="stat-title">MAIN HOUSE LOAD (CT S1)</span>
+          <span class="stat-badge">120V Line 1</span>
+        </div>
+        <div class="stat-main" style="color: var(--load-color);">${(d.s1_house_load_watts || 0).toFixed(0)} W</div>
+        <div class="stat-footer">
+          <span>Current: ${(d.s1_house_load_amps || 0).toFixed(1)} A</span>
+          <span>Energy: ${(d.s1_house_load_kwh || 0).toFixed(1)} kWh</span>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-header">
+          <span class="stat-title">SHOP LOAD (CT S3)</span>
+          <span class="stat-badge">Autoformer</span>
+        </div>
+        <div class="stat-main" style="color: #38bdf8;">${(d.s3_shop_load_watts || 0).toFixed(0)} W</div>
+        <div class="stat-footer">
+          <span>Current: ${(d.s3_shop_load_amps || 0).toFixed(1)} A</span>
+          <span>Energy: ${(d.s3_shop_load_kwh || 0).toFixed(1)} kWh</span>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-header">
+          <span class="stat-title">AC LINE FREQUENCY</span>
+          <span class="stat-badge">Synchronized</span>
+        </div>
+        <div class="stat-main" style="color: #10b981;">${(d.frequency_hz || 60).toFixed(2)} Hz</div>
+        <div class="stat-footer">
+          <span>Nominal: 60.00 Hz</span>
+          <span>Voltage: 120.0 V</span>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-header">
+          <span class="stat-title">DEVICE STATUS</span>
+          <span class="stat-badge">${Boolean(payload.online) ? 'ACTIVE' : 'OFFLINE'}</span>
+        </div>
+        <div class="stat-main" style="color: ${Boolean(payload.online) ? '#10b981' : '#ef4444'}; font-size: 1.5rem;">
+          ${Boolean(payload.online) ? 'ONLINE' : 'OFFLINE'}
+        </div>
+        <div class="stat-footer">
+          <span>MAC: ${escapeHtml(d.mac || payload.mac_address || "F8:2F:5B:01:33:F4")}</span>
+          <span>S/N: ${escapeHtml(d.serial || payload.serial_number || "0x1c7f464e")}</span>
+        </div>
+      </div>
+    `;
+
+    parameterSections.innerHTML = `
+      <section class="device-section">
+        <div class="device-section-title"><span>🏡</span> Main House Load Sub-Meter (CT S1)</div>
+        <div class="params-grid">
+          <div class="param-card">
+            <span class="param-label">Instantaneous Power</span>
+            <span class="param-val">${(d.s1_house_load_watts || 0).toFixed(1)} W</span>
+            <span class="param-sub">Register did=0 (Formula: -S1*L1)</span>
+          </div>
+          <div class="param-card">
+            <span class="param-label">Calculated AC Current</span>
+            <span class="param-val">${(d.s1_house_load_amps || 0).toFixed(1)} A</span>
+            <span class="param-sub">120V Single Conductor Load</span>
+          </div>
+          <div class="param-card">
+            <span class="param-label">Cumulative Energy</span>
+            <span class="param-val">${(d.s1_house_load_kwh || 0).toFixed(2)} kWh</span>
+            <span class="param-sub">Total Integrated Consumption</span>
+          </div>
+          <div class="param-card">
+            <span class="param-label">Dashboard Role</span>
+            <span class="param-val" style="font-size: 1rem; color: #10b981;">Primary House Load</span>
+            <span class="param-sub">Direct Feed to Household Card</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="device-section">
+        <div class="device-section-title"><span>🏭</span> Shop Load & SB4000 Sub-Meter (CT S3)</div>
+        <div class="params-grid">
+          <div class="param-card">
+            <span class="param-label">Instantaneous Power</span>
+            <span class="param-val">${(d.s3_shop_load_watts || 0).toFixed(1)} W</span>
+            <span class="param-sub">Register did=16 (Formula: -S3*L1)</span>
+          </div>
+          <div class="param-card">
+            <span class="param-label">Calculated AC Current</span>
+            <span class="param-val">${(d.s3_shop_load_amps || 0).toFixed(1)} A</span>
+            <span class="param-sub">120V Single Conductor Load</span>
+          </div>
+          <div class="param-card">
+            <span class="param-label">Cumulative Energy</span>
+            <span class="param-val">${(d.s3_shop_load_kwh || 0).toFixed(2)} kWh</span>
+            <span class="param-sub">Total Integrated Consumption</span>
+          </div>
+          <div class="param-card">
+            <span class="param-label">Inverter & Topology</span>
+            <span class="param-val" style="font-size: 1rem; color: #38bdf8;">SB4000 Autoformer</span>
+            <span class="param-sub">Passes via autoformer to house</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="device-section">
+        <div class="device-section-title"><span>⚙️</span> Device Configuration & Network</div>
+        <div class="params-grid">
+          <div class="param-card">
+            <span class="param-label">Static IP Address</span>
+            <span class="param-val" style="font-size: 1.1rem;">${escapeHtml(d.ip || payload.ip || "192.168.42.126")}</span>
+            <span class="param-sub">Port 80 (HTTP XML)</span>
+          </div>
+          <div class="param-card">
+            <span class="param-label">MAC Address</span>
+            <span class="param-val" style="font-size: 1.1rem;">${escapeHtml(d.mac || payload.mac_address || "F8:2F:5B:01:33:F4")}</span>
+            <span class="param-sub">Hardware Ethernet Address</span>
+          </div>
+          <div class="param-card">
+            <span class="param-label">AC Grid Frequency</span>
+            <span class="param-val">${(d.frequency_hz || 60).toFixed(2)} Hz</span>
+            <span class="param-sub">Register did=17 (Frequency)</span>
+          </div>
+          <div class="param-card">
+            <span class="param-label">Device Serial</span>
+            <span class="param-val" style="font-size: 1.1rem;">${escapeHtml(d.serial || payload.serial_number || "0x1c7f464e")}</span>
+            <span class="param-sub">Core Unit Identifier</span>
+          </div>
+        </div>
+      </section>
+    `;
+
+    const channels = payload.channels || d.raw_registers || [];
+    rawRowsData = channels.map(c => ({
+      id: c.meta || "--",
+      name: c.name || c.meta || "--",
+      desc: c.cumulative ? `Cumulative: ${c.cumulative} J` : (c.type === "P" ? "Power Register (Watts)" : (c.type === "F" ? "Frequency (Hz)" : "eGauge Register")),
       val: `${c.value !== undefined ? c.value : '--'} ${c.unit || ''}`
     }));
 
