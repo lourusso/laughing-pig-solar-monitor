@@ -252,9 +252,11 @@ main {
 }
 
 .node-value {
-  font-size: 1.75rem;
-  font-weight: 700;
+  font-size: 2.6rem;
+  font-weight: 800;
+  line-height: 1.05;
   margin: 0.25rem 0;
+  white-space: nowrap;
 }
 
 .node-subtext {
@@ -378,14 +380,15 @@ main {
   transition: width 0.4s ease, background 0.4s ease;
 }
 
-/* Hero Values */
+/* Hero Values (1.5x prominent display) */
 .bat-hero-val,
 .load-hero-val {
-  font-size: clamp(2rem, 3.5vw, 2.8rem);
+  font-size: clamp(3rem, 5.2vw, 4.2rem);
   font-weight: 800;
-  line-height: 1.1;
+  line-height: 1.05;
   margin: 0.15rem 0;
   letter-spacing: -0.02em;
+  white-space: nowrap;
 }
 
 /* Dynamic Status Pills */
@@ -975,8 +978,10 @@ main {
 
   .flow-node.battery .bat-hero-val,
   .flow-node.load .load-hero-val {
-    font-size: clamp(1.9rem, 5.2vw, 2.7rem);
+    font-size: clamp(2.85rem, 7.8vw, 4.05rem);
     margin: 0.1rem 0;
+    line-height: 1.05;
+    white-space: nowrap;
   }
 
   .flow-status-pill {
@@ -1070,16 +1075,11 @@ main {
 
   .flow-node.solar .node-value,
   .flow-node.generator .node-value {
-    font-size: clamp(1.8rem, 5vw, 2.6rem);
+    font-size: clamp(2.7rem, 7.5vw, 3.9rem);
     font-weight: 800;
     margin: 0.2rem 0;
-  }
-
-  .flow-node.battery .node-value,
-  .flow-node.load .node-value {
-    font-size: clamp(2.6rem, 6vw, 3.6rem);
-    font-weight: 800;
-    margin: 0.3rem 0;
+    line-height: 1.05;
+    white-space: nowrap;
   }
 
   .node-subtext {
@@ -1173,9 +1173,11 @@ main {
 
   .flow-node.battery .bat-hero-val,
   .flow-node.load .load-hero-val {
-    font-size: clamp(2.4rem, 4.2vw, 3.8rem);
+    font-size: clamp(3.6rem, 6.3vw, 5.7rem);
     font-weight: 800;
     margin: 0.2rem 0;
+    line-height: 1.05;
+    white-space: nowrap;
   }
 
   .flow-status-pill {
@@ -1238,9 +1240,11 @@ main {
 
   .flow-node.solar .node-value,
   .flow-node.generator .node-value {
-    font-size: clamp(1.7rem, 3.2vw, 2.3rem);
+    font-size: clamp(2.55rem, 4.8vw, 3.45rem);
     font-weight: 800;
     margin: 0.2rem 0;
+    line-height: 1.05;
+    white-space: nowrap;
   }
 
   .node-subtext {
