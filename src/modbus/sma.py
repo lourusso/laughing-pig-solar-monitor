@@ -74,11 +74,22 @@ class SMAWebBox:
             with urllib.request.urlopen(req, timeout=self.timeout) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
 
+            # The WebBox sends us a package containing reports from our devices.
+            # In one single neat pass, we sort out the report for Sunny Island and Sunny Boy!
             devices = data.get("result", {}).get("devices", [])
-            device_map = {d.get("key"): {c.get("meta"): c.get("value") for c in d.get("channels", [])} for d in devices}
+            si_dev = {}
+            sb_dev = {}
+            for dev in devices:
+                key = dev.get("key")
+                if key == self.si_key:
+                    si_dev = dev
+                elif key == self.sb_key:
+                    sb_dev = dev
 
-            si_channels = device_map.get(self.si_key, {})
-            sb_channels = device_map.get(self.sb_key, {})
+            si_raw_channels = si_dev.get("channels", [])
+            sb_raw_channels = sb_dev.get("channels", [])
+            si_channels = {c.get("meta"): c.get("value") for c in si_raw_channels}
+            sb_channels = {c.get("meta"): c.get("value") for c in sb_raw_channels}
 
             # --- Parse Sunny Island 6048 (Battery & Loads) ---
             def safe_float(v: Any, default: float = 0.0) -> float:
@@ -136,11 +147,6 @@ class SMAWebBox:
             sb_total_kwh = safe_float(sb_channels.get("E-Total"), 0.0)
             sb_temp = safe_float(sb_channels.get("Temperature"), 0.0)
             sb_mode = sb_channels.get("Mode", "OK")
-
-            si_dev = next((d for d in devices if d.get("key") == self.si_key), {})
-            sb_dev = next((d for d in devices if d.get("key") == self.sb_key), {})
-            si_raw_channels = si_dev.get("channels", [])
-            sb_raw_channels = sb_dev.get("channels", [])
 
             return {
                 "online": True,

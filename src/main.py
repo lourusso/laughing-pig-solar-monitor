@@ -75,9 +75,49 @@ class SolarMonitorService:
         self._latest_webbox_full: Dict[str, Any] = {}
         self._latest_classic_full: Dict[str, Any] = {}
         self._latest_classic2_full: Dict[str, Any] = {}
+
+        # Quick-memory scratchpad (In-Memory Telemetry Cache):
+        # We keep the newest solar snapshot right in fast computer memory (RAM).
+        # When someone looks at the dashboard, we can hand them the answer instantly
+        # without making the computer search through the hard drive!
+        self._latest_snapshot: Optional[TelemetrySnapshot] = None
+        self._latest_snapshot_dict: Optional[Dict[str, Any]] = None
+        try:
+            self._latest_snapshot_dict = self.db.get_latest_snapshot()
+        except Exception:
+            self._latest_snapshot_dict = None
+
+        # Device details cache:
+        # Think of this like a temporary sticky note for each gadget.
+        # We remember the detailed numbers for 10 seconds so we don't bombard
+        # the small computer chips on the charge controllers every 3 seconds!
+        self._device_cache: Dict[str, Dict[str, Any]] = {}
+        self._device_cache_time: Dict[str, float] = {}
+        self._device_cache_ttl: float = 10.0  # seconds
+
+        # Smart retry counters (Circuit Breaker):
+        # If a gadget is turned off or unplugged (like Classic #2), we don't want to
+        # waste 3 whole seconds waiting on it every single turn!
+        # If it doesn't answer 3 times in a row, we give it a 60-second break before trying again.
+        self._device_failures: Dict[str, int] = {"classic1": 0, "classic2": 0, "webbox": 0}
+        self._device_next_retry: Dict[str, float] = {"classic1": 0.0, "classic2": 0.0, "webbox": 0.0}
+
+        # Daily database cleaner timer (seconds)
+        self._last_prune_time: float = 0.0
+
         self._pool = ThreadPoolExecutor(max_workers=3)
         self._running = False
         self._poll_thread = None
+
+    def get_live_snapshot(self) -> Dict[str, Any]:
+        """
+        Grab the newest solar numbers directly from fast RAM memory.
+        It's like looking at a sticky note on your desk instead of walking to the filing cabinet!
+        """
+        if self._latest_snapshot_dict is not None:
+            return self._latest_snapshot_dict
+        # If memory is empty (right after starting up), check the database filing cabinet
+        return self.db.get_latest_snapshot() or {}
 
     def start(self):
         logger.info(f"Starting {self.config.system.name} Monitor Service...")
@@ -102,14 +142,44 @@ class SolarMonitorService:
         self._pool.shutdown(wait=False)
 
     def poll_once(self) -> TelemetrySnapshot:
-        # Poll all controllers concurrently
-        fut_c1 = self._pool.submit(self.classic.poll) if self.classic else None
-        fut_c2 = self._pool.submit(self.classic2.poll) if self.classic2 else None
-        fut_wb = self._pool.submit(self.webbox.poll) if self.webbox else None
+        now = time.time()
 
-        classic1_data = fut_c1.result() if fut_c1 else {}
-        classic2_data = fut_c2.result() if fut_c2 else {}
-        webbox_data = fut_wb.result() if fut_wb else {}
+        # Should we poll each controller?
+        # If a controller is unplugged or offline, we give it a 60-second resting break
+        # instead of waiting 3 whole seconds for it on every single turn!
+        can_poll_c1 = bool(self.classic and (now >= self._device_next_retry.get("classic1", 0.0)))
+        can_poll_c2 = bool(self.classic2 and (now >= self._device_next_retry.get("classic2", 0.0)))
+        can_poll_wb = bool(self.webbox and (now >= self._device_next_retry.get("webbox", 0.0)))
+
+        # Poll active controllers concurrently using worker threads
+        fut_c1 = self._pool.submit(self.classic.poll) if can_poll_c1 else None
+        fut_c2 = self._pool.submit(self.classic2.poll) if can_poll_c2 else None
+        fut_wb = self._pool.submit(self.webbox.poll) if can_poll_wb else None
+
+        classic1_data = fut_c1.result() if fut_c1 else (self._latest_classic_full or {})
+        classic2_data = fut_c2.result() if fut_c2 else (self._latest_classic2_full or {})
+        webbox_data = fut_wb.result() if fut_wb else (self._latest_webbox_full or {})
+
+        # Check who answered and who is sleeping:
+        def update_retry_state(dev_key: str, data: Dict[str, Any]):
+            if data.get("online"):
+                # Hurray, the device answered! Reset failure counter to zero.
+                self._device_failures[dev_key] = 0
+                self._device_next_retry[dev_key] = 0.0
+            else:
+                # It didn't answer. Increment the strike counter.
+                fails = self._device_failures.get(dev_key, 0) + 1
+                self._device_failures[dev_key] = fails
+                # After 3 strikes, tell the monitor to pause trying for 60 seconds.
+                if fails >= 3:
+                    self._device_next_retry[dev_key] = time.time() + 60.0
+
+        if can_poll_c1:
+            update_retry_state("classic1", classic1_data)
+        if can_poll_c2:
+            update_retry_state("classic2", classic2_data)
+        if can_poll_wb:
+            update_retry_state("webbox", webbox_data)
 
         self._latest_classic_full = classic1_data
         self._latest_classic2_full = classic2_data
@@ -190,10 +260,15 @@ class SolarMonitorService:
             sunnyboy_online=bool(sb_data.get("online") or pv_ac > 0 or (bool(webbox_data.get("online")) and float(sb_data.get("energy_total_kwh", 0.0)) > 0))
         )
 
-        # Store in SQLite
+        # 1. Save to the SQLite notebook on the disk for history
         self.db.save_snapshot(snapshot)
 
-        # Publish to MQTT
+        # 2. Keep this brand-new reading right in fast RAM memory!
+        # When a browser asks for live solar data, we give it to them in less than 1 millisecond.
+        self._latest_snapshot = snapshot
+        self._latest_snapshot_dict = snapshot.model_dump()
+
+        # 3. Publish to MQTT for Home Assistant
         if self.mqtt:
             self.mqtt.publish_snapshot(snapshot)
 
@@ -202,19 +277,34 @@ class SolarMonitorService:
     def get_device_telemetry(self, device_id: str) -> Dict[str, Any]:
         """Fetch rich real-time telemetry for a specific device."""
         dev = device_id.lower().strip()
+        now = time.time()
+
+        # Check our 10-second sticky note memory first!
+        # If someone keeps clicking or refreshing the screen, we give them the cached answer
+        # so we don't bombard the solar controllers over the wire.
+        cached = self._device_cache.get(dev)
+        cached_t = self._device_cache_time.get(dev, 0.0)
+        if cached and (now - cached_t < self._device_cache_ttl):
+            return cached
+
+        res: Dict[str, Any] = {}
+
         if dev in ("midnite", "classic", "classic-1", "midnite-1", "classic1", "midnite1"):
-            if self.classic:
+            # Only ask for a full scan if Classic #1 is healthy and not in a failure cooldown
+            if self.classic and self._device_failures.get("classic1", 0) < 3:
                 try:
                     full = self.classic.poll_full()
                     if full.get("online"):
                         full["device_id"] = "classic-1"
                         full["device_name"] = "MidNite Solar Classic #1"
+                        self._device_cache[dev] = full
+                        self._device_cache_time[dev] = now
                         return full
                 except Exception as e:
                     logger.debug(f"Live poll_full for MidNite #1 failed: {e}")
             
             c = self._latest_classic_full
-            return {
+            res = {
                 "device_id": "classic-1",
                 "device_name": "MidNite Solar Classic #1",
                 "model": "Classic MPPT Charge Controller (192.168.42.129)",
@@ -224,18 +314,22 @@ class SolarMonitorService:
             }
 
         elif dev in ("classic-2", "midnite-2", "classic2", "midnite2"):
-            if self.classic2:
+            # If Classic #2 is offline, don't freeze the web browser for 3 seconds!
+            # Return our offline status note immediately.
+            if self.classic2 and self._device_failures.get("classic2", 0) < 3:
                 try:
                     full = self.classic2.poll_full()
                     if full.get("online"):
                         full["device_id"] = "classic-2"
                         full["device_name"] = "MidNite Solar Classic #2"
+                        self._device_cache[dev] = full
+                        self._device_cache_time[dev] = now
                         return full
                 except Exception as e:
                     logger.debug(f"Live poll_full for MidNite #2 failed: {e}")
 
             c2 = self._latest_classic2_full
-            return {
+            res = {
                 "device_id": "classic-2",
                 "device_name": "MidNite Solar Classic #2",
                 "model": "Classic MPPT Charge Controller (192.168.42.130)",
@@ -323,7 +417,7 @@ class SolarMonitorService:
                 "raw_channels": raw_channels
             }
 
-            return {
+            res = {
                 "device_id": "battery",
                 "device_name": "Discover AES Lithium Battery & LYNK II",
                 "model": "Discover AES LiFePO4 (LYNK II Closed-Loop)",
@@ -349,7 +443,7 @@ class SolarMonitorService:
                         "ac_frequency": snap.get("ac_frequency_hz", 60.0),
                         "raw_channels": []
                     }
-            return {
+            res = {
                 "device_id": "sunny-island",
                 "device_name": "SMA Sunny Island 6048 & Household Loads",
                 "model": "Sunny Island 6048-US Inverter/Charger",
@@ -360,7 +454,7 @@ class SolarMonitorService:
 
         elif dev in ("sunny-boy", "sb"):
             sb = self._latest_webbox_full.get("sunny_boy", {})
-            return {
+            res = {
                 "device_id": "sunny-boy",
                 "device_name": "SMA Sunny Boy 4000",
                 "model": "Sunny Boy 4000-US Grid-Tie Inverter",
@@ -370,6 +464,11 @@ class SolarMonitorService:
             }
         else:
             return {"error": f"Unknown device ID: {device_id}"}
+
+        # Save this result in our 10-second sticky note memory before returning!
+        self._device_cache[dev] = res
+        self._device_cache_time[dev] = now
+        return res
 
     def _polling_loop(self):
         interval = self.config.system.poll_interval_seconds
@@ -384,6 +483,20 @@ class SolarMonitorService:
                     f"Battery: {snap.battery_soc:.0f}% ({snap.battery_power_watts:+.0f}W) | "
                     f"Load: {snap.load_power_watts:.0f}W"
                 )
+
+                # Database Janitor:
+                # Once every 24 hours (86,400 seconds), we sweep away snapshots older than 90 days.
+                # This keeps the database file clean, small, and fast forever!
+                now = time.time()
+                if now - self._last_prune_time > 86400:
+                    self._last_prune_time = now
+                    try:
+                        deleted = self.db.prune_old_snapshots(retention_days=self.config.storage.retention_days)
+                        if deleted > 0:
+                            logger.info(f"Database cleaner: Swept away {deleted} old records older than {self.config.storage.retention_days} days.")
+                    except Exception as err:
+                        logger.warning(f"Database cleaning task had a hiccup: {err}")
+
             except Exception as e:
                 logger.error(f"Error during polling cycle: {e}", exc_info=True)
 

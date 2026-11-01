@@ -34,8 +34,12 @@ class ModbusTCPClient:
         if self._sock is not None:
             return True
         try:
+            # Sockets are like telephone calls between computers!
+            # We dial the solar controller's IP address and port 502 to say hello.
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.settimeout(self.timeout)
+            # Enable SO_KEEPALIVE so the network line stays healthy and doesn't get silently dropped
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
             s.connect((self.host, self.port))
             self._sock = s
             return True
@@ -74,7 +78,9 @@ class ModbusTCPClient:
             packet = header + pdu
 
             try:
-                assert self._sock is not None
+                # Make sure the telephone line is open before sending our message
+                if self._sock is None:
+                    raise ModbusError(f"No active connection to {self.host}:{self.port}")
                 self._sock.sendall(packet)
 
                 # Read Modbus MBAP Header (7 bytes)
@@ -113,8 +119,11 @@ class ModbusTCPClient:
                 raise ModbusError(f"Modbus transaction failed ({self.host}:{self.port}, unit {unit_id}, addr {address}): {e}")
 
     def _recv_exact(self, num_bytes: int) -> bytes:
+        # Think of this like holding out your hands to catch an exact number of baseballs!
+        # We keep catching chunks until we have all the bytes the device promised to send.
         buf = bytearray()
-        assert self._sock is not None
+        if self._sock is None:
+            raise ModbusError("Cannot receive data: socket is disconnected")
         while len(buf) < num_bytes:
             chunk = self._sock.recv(num_bytes - len(buf))
             if not chunk:

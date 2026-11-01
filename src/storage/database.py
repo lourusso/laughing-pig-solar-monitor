@@ -16,15 +16,25 @@ class Database:
         self._init_db()
 
     def _get_connection(self) -> sqlite3.Connection:
+        # Think of this connection like opening a notebook to write or read notes.
         conn = sqlite3.connect(str(self.db_path), timeout=10.0)
         conn.row_factory = sqlite3.Row
-        # Enable WAL mode for high-concurrency read/write
-        conn.execute("PRAGMA journal_mode=WAL;")
+        
+        # "PRAGMA synchronous=NORMAL" is like telling the notebook:
+        # "Write neatly and safely, but don't pause to lock the notebook in a safe after every single letter."
+        # This makes the database work much faster while keeping your data safe!
         conn.execute("PRAGMA synchronous=NORMAL;")
         return conn
 
     def _init_db(self):
+        # We set up the notebook rules once right here when the monitor first turns on.
         with self._get_connection() as conn:
+            # WAL mode means "Write-Ahead Logging".
+            # Imagine writing quick sticky notes first, then filing them neatly in the notebook.
+            # It lets us read and write at the very same time without bumping into each other!
+            # SQLite remembers WAL mode forever in the file, so we only need to turn it on once here.
+            conn.execute("PRAGMA journal_mode=WAL;")
+            
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS snapshots (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -183,14 +193,22 @@ class Database:
                 WHERE timestamp >= ?
                 ORDER BY timestamp ASC;
             """, (since,))
-            rows = [dict(r) for r in cur.fetchall()]
+            # Fetch raw database rows first without making thousands of temporary dictionaries.
+            rows = cur.fetchall()
 
-            if len(rows) <= max_points or not rows:
-                return rows
+            if not rows:
+                return []
 
-            # Downsample evenly to avoid overloading charts
+            if len(rows) <= max_points:
+                # If we only have a few points, convert all of them into easy-to-read dictionaries.
+                return [dict(r) for r in rows]
+
+            # Imagine you took 8,640 photos on a long summer road trip, but your photo album only holds 300 photos.
+            # Instead of making 8,640 expensive photo prints and throwing 8,340 in the trash,
+            # we pick only 300 evenly spaced photos across the day!
+            # This saves computer memory and makes the graphs pop up lightning fast!
             step = len(rows) / max_points
-            return [rows[int(i * step)] for i in range(max_points)]
+            return [dict(rows[int(i * step)]) for i in range(max_points)]
 
     def export_csv(self, days: int = 7) -> str:
         since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
@@ -207,6 +225,9 @@ class Database:
             return output.getvalue()
 
     def prune_old_snapshots(self, retention_days: int = 90) -> int:
+        # This is our little database janitor!
+        # It tidies up by sweeping away any solar snapshots older than 90 days.
+        # That way our computer storage never gets full of stale, dusty data!
         cutoff = (datetime.now(timezone.utc) - timedelta(days=retention_days)).isoformat()
         with self._get_connection() as conn:
             cur = conn.execute("DELETE FROM snapshots WHERE timestamp < ?;", (cutoff,))

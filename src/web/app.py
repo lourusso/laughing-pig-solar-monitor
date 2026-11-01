@@ -14,12 +14,30 @@ def create_app(db: Database, config: AppConfig, service: Optional[Any] = None) -
     static_dir = base_dir / "static"
     templates_dir = base_dir / "templates"
 
+    # Memory cache for web pages:
+    # We read the HTML page templates once into memory when starting up.
+    # Think of this like memorizing a bedtime story so you don't have to walk over
+    # to the bookshelf and open the book every single time someone asks to hear it!
+    index_html_cache: str = ""
+    index_file = templates_dir / "index.html"
+    if index_file.exists():
+        index_html_cache = index_file.read_text(encoding="utf-8")
+
+    device_html_cache: str = ""
+    device_file = templates_dir / "device.html"
+    if device_file.exists():
+        device_html_cache = device_file.read_text(encoding="utf-8")
+
     @app.middleware("http")
-    async def add_no_cache_headers(request, call_next):
+    async def manage_cache_headers(request, call_next):
         response = await call_next(request)
-        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-        response.headers["Pragma"] = "no-cache"
-        response.headers["Expires"] = "0"
+        # If someone is asking for live solar telemetry numbers under "/api/...",
+        # we tell their browser: "Always grab fresh numbers! Don't keep old expired numbers."
+        # But for pictures, CSS styles, and scripts, we let the browser cache them so it loads super fast!
+        if request.url.path.startswith("/api/"):
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
         return response
 
     if static_dir.exists():
@@ -27,20 +45,22 @@ def create_app(db: Database, config: AppConfig, service: Optional[Any] = None) -
 
     @app.get("/", response_class=HTMLResponse)
     def index():
-        index_file = templates_dir / "index.html"
-        if index_file.exists():
-            return HTMLResponse(content=index_file.read_text(encoding="utf-8"))
+        if index_html_cache:
+            return HTMLResponse(content=index_html_cache)
         return HTMLResponse("<h1>Laughing Pig Solar Monitor</h1>")
 
     @app.get("/device/{device_id}", response_class=HTMLResponse)
     def device_detail(device_id: str):
-        device_file = templates_dir / "device.html"
-        if device_file.exists():
-            return HTMLResponse(content=device_file.read_text(encoding="utf-8"))
+        if device_html_cache:
+            return HTMLResponse(content=device_html_cache)
         return HTMLResponse("<h1>Device Page Not Found</h1>", status_code=404)
 
     @app.get("/api/live")
     def get_live():
+        # First, check our fast computer memory in the service.
+        # This gives us an instant answer in less than a millisecond without bothering the hard drive!
+        if service and hasattr(service, "get_live_snapshot"):
+            return service.get_live_snapshot()
         latest = db.get_latest_snapshot()
         return latest or {}
 
