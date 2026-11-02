@@ -330,18 +330,162 @@ class Database:
                     writer.writerow(tuple(r))
             return output.getvalue()
 
-    def prune_old_snapshots(self, retention_days: int = 90) -> int:
-        # This is our little database janitor!
-        # It tidies up by sweeping away any solar snapshots older than 90 days.
-        # That way our computer storage never gets full of stale, dusty data!
-        cutoff = (datetime.now(timezone.utc) - timedelta(days=retention_days)).isoformat()
+    def rollup_old_snapshots(self, retention_days: int = 365, rollup_minutes: int = 10) -> int:
+        """
+        Our Smart Solar Diary Librarian!
+        For a whole year (365 days), we keep every single 15-second snapshot so we can zoom
+        in on any moment. Once pages are older than 1 year, instead of throwing them in the
+        trash, our librarian combines every 10 minutes of 15-second readings (about 40 rows)
+        into 1 neat 10-minute average row! That way we keep our farm's history forever while
+        using 40x less disk space!
+        """
+        rollup_minutes = max(1, int(rollup_minutes))
+        bucket_seconds = rollup_minutes * 60
+
+        # Round the cutoff time down to a clean 10-minute clock boundary (like 12:10:00 or 12:20:00)
+        # so we never average a 10-minute bucket that is only halfway finished!
+        raw_cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
+        floored_min = (raw_cutoff.minute // rollup_minutes) * rollup_minutes
+        cutoff_dt = raw_cutoff.replace(minute=floored_min, second=0, microsecond=0)
+        cutoff = cutoff_dt.isoformat()
+
         with self._lock:
             conn = self._get_connection()
-            cur = conn.execute("DELETE FROM snapshots WHERE timestamp < ?;", (cutoff,))
+
+            # Check our bookmark ("rollup_watermark_utc") so we only roll up brand-new days
+            # that just crossed the 1-year mark, without re-checking years we already rolled up!
+            cur = conn.execute(
+                "SELECT value FROM system_meta WHERE key = 'rollup_watermark_utc';"
+            )
+            row = cur.fetchone()
+            watermark = row["value"] if row else "0000-01-01T00:00:00+00:00"
+
+            if cutoff <= watermark:
+                return 0
+
+            # Count how many raw 15-second rows are waiting to be rolled up in this window
+            cnt_cur = conn.execute(
+                "SELECT COUNT(*) FROM snapshots WHERE timestamp >= ? AND timestamp < ?;",
+                (watermark, cutoff)
+            )
+            raw_count = cnt_cur.fetchone()[0]
+            if raw_count == 0:
+                conn.execute(
+                    "INSERT OR REPLACE INTO system_meta (key, value) VALUES ('rollup_watermark_utc', ?);",
+                    (cutoff,)
+                )
+                conn.commit()
+                return 0
+
+            # Group all 15-second snapshots inside each 10-minute bucket and average their values!
+            if rollup_minutes == 10:
+                bucket_expr = "substr(timestamp, 1, 15) || '0:00+00:00'"
+            else:
+                bucket_expr = (
+                    f"strftime('%Y-%m-%dT%H:%M:00+00:00', "
+                    f"(CAST(strftime('%s', timestamp) AS INTEGER) / {bucket_seconds}) * {bucket_seconds}, "
+                    f"'unixepoch')"
+                )
+
+            rollup_rows = conn.execute(f"""
+                SELECT
+                    {bucket_expr} AS bucket_ts,
+                    ROUND(AVG(pv_dc_power_watts), 1) AS pv_dc_power_watts,
+                    ROUND(AVG(pv_dc_volts), 1) AS pv_dc_volts,
+                    ROUND(AVG(pv_dc_amps), 1) AS pv_dc_amps,
+                    ROUND(MAX(pv_dc_daily_kwh), 2) AS pv_dc_daily_kwh,
+                    ROUND(AVG(classic_bat_volts), 1) AS classic_bat_volts,
+                    MAX(charge_stage) AS charge_stage,
+                    ROUND(AVG(classic1_power_watts), 1) AS classic1_power_watts,
+                    ROUND(AVG(classic1_volts), 1) AS classic1_volts,
+                    ROUND(AVG(classic1_amps), 1) AS classic1_amps,
+                    ROUND(MAX(classic1_daily_kwh), 2) AS classic1_daily_kwh,
+                    ROUND(AVG(classic1_bat_volts), 1) AS classic1_bat_volts,
+                    MAX(classic1_stage) AS classic1_stage,
+                    MAX(classic1_online) AS classic1_online,
+                    ROUND(AVG(classic2_power_watts), 1) AS classic2_power_watts,
+                    ROUND(AVG(classic2_volts), 1) AS classic2_volts,
+                    ROUND(AVG(classic2_amps), 1) AS classic2_amps,
+                    ROUND(MAX(classic2_daily_kwh), 2) AS classic2_daily_kwh,
+                    ROUND(AVG(classic2_bat_volts), 1) AS classic2_bat_volts,
+                    MAX(classic2_stage) AS classic2_stage,
+                    MAX(classic2_online) AS classic2_online,
+                    ROUND(AVG(pv_ac_power_watts), 1) AS pv_ac_power_watts,
+                    ROUND(AVG(pv_ac_volts), 1) AS pv_ac_volts,
+                    ROUND(MAX(pv_ac_total_kwh), 2) AS pv_ac_total_kwh,
+                    ROUND(AVG(total_pv_power_watts), 1) AS total_pv_power_watts,
+                    ROUND(AVG(battery_soc), 1) AS battery_soc,
+                    ROUND(AVG(battery_soh), 1) AS battery_soh,
+                    ROUND(AVG(battery_volts), 1) AS battery_volts,
+                    ROUND(AVG(battery_amps), 1) AS battery_amps,
+                    ROUND(AVG(battery_power_watts), 1) AS battery_power_watts,
+                    ROUND(AVG(battery_temp_c), 1) AS battery_temp_c,
+                    ROUND(AVG(battery_temp_f), 1) AS battery_temp_f,
+                    ROUND(AVG(load_power_watts), 1) AS load_power_watts,
+                    ROUND(AVG(grid_gen_power_watts), 1) AS grid_gen_power_watts,
+                    ROUND(AVG(generator_volts), 1) AS generator_volts,
+                    ROUND(AVG(generator_amps), 1) AS generator_amps,
+                    ROUND(AVG(generator_frequency), 1) AS generator_frequency,
+                    ROUND(AVG(ac_frequency_hz), 2) AS ac_frequency_hz,
+                    ROUND(AVG(ac_voltage_volts), 1) AS ac_voltage_volts,
+                    MAX(classic_online) AS classic_online,
+                    MAX(webbox_online) AS webbox_online,
+                    MAX(sunnyboy_online) AS sunnyboy_online,
+                    MAX(egauge_online) AS egauge_online,
+                    ROUND(AVG(house_load_watts), 1) AS house_load_watts,
+                    ROUND(AVG(shop_load_watts), 1) AS shop_load_watts,
+                    MAX(load_source) AS load_source,
+                    MAX(warnings) AS warnings
+                FROM snapshots
+                WHERE timestamp >= ? AND timestamp < ?
+                GROUP BY bucket_ts
+                ORDER BY bucket_ts ASC;
+            """, (watermark, cutoff)).fetchall()
+
+            # Replace the 15-second rows in that window with the compact 10-minute average rows!
+            conn.execute(
+                "DELETE FROM snapshots WHERE timestamp >= ? AND timestamp < ?;",
+                (watermark, cutoff)
+            )
+
+            insert_sql = """
+                INSERT OR REPLACE INTO snapshots (
+                    timestamp, pv_dc_power_watts, pv_dc_volts, pv_dc_amps, pv_dc_daily_kwh,
+                    classic_bat_volts, charge_stage,
+                    classic1_power_watts, classic1_volts, classic1_amps, classic1_daily_kwh,
+                    classic1_bat_volts, classic1_stage, classic1_online,
+                    classic2_power_watts, classic2_volts, classic2_amps, classic2_daily_kwh,
+                    classic2_bat_volts, classic2_stage, classic2_online,
+                    pv_ac_power_watts, pv_ac_volts, pv_ac_total_kwh,
+                    total_pv_power_watts, battery_soc, battery_soh, battery_volts,
+                    battery_amps, battery_power_watts, battery_temp_c, battery_temp_f,
+                    load_power_watts,
+                    grid_gen_power_watts, generator_volts, generator_amps, generator_frequency,
+                    ac_frequency_hz, ac_voltage_volts,
+                    classic_online, webbox_online, sunnyboy_online,
+                    egauge_online, house_load_watts, shop_load_watts, load_source,
+                    warnings
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            """
+            conn.executemany(insert_sql, [tuple(r) for r in rollup_rows])
+            conn.execute(
+                "INSERT OR REPLACE INTO system_meta (key, value) VALUES ('rollup_watermark_utc', ?);",
+                (cutoff,)
+            )
             conn.commit()
-            if cur.rowcount > 0:
-                self._history_cache.clear()
-            return cur.rowcount
+            self._history_cache.clear()
+
+            compacted = max(0, raw_count - len(rollup_rows))
+            logger.info(
+                f"Rolled up {raw_count} old 15s snapshots into {len(rollup_rows)} "
+                f"{rollup_minutes}-minute average rows (cutoff {cutoff})."
+            )
+            return compacted
+
+    def prune_old_snapshots(self, retention_days: int = 365) -> int:
+        # Backward-compatible helper that calls our 10-minute rollup librarian
+        # instead of deleting old history!
+        return self.rollup_old_snapshots(retention_days=retention_days, rollup_minutes=10)
 
     def close(self) -> None:
         """Close the persistent SQLite connection cleanly when shutting down."""

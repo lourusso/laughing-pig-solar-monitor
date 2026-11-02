@@ -678,18 +678,26 @@ class SolarMonitorService:
                     f"Load: {snap.load_power_watts:.0f}W"
                 )
 
-                # Database Janitor:
-                # Once every 24 hours (86,400 seconds), we sweep away snapshots older than 90 days.
-                # This keeps the database file clean, small, and fast forever!
+                # Database Librarian:
+                # Once every 24 hours (86,400 seconds), we keep a full 1 year (365 days) of
+                # 15-second snapshots, and neatly roll up anything older than 1 year into
+                # 10-minute average rows so we keep our farm's history forever!
                 now = time.time()
                 if now - self._last_prune_time > 86400:
                     self._last_prune_time = now
                     try:
-                        deleted = self.db.prune_old_snapshots(retention_days=self.config.storage.retention_days)
-                        if deleted > 0:
-                            logger.info(f"Database cleaner: Swept away {deleted} old records older than {self.config.storage.retention_days} days.")
+                        rollup_mins = getattr(self.config.storage, "rollup_interval_minutes", 10)
+                        compacted = self.db.rollup_old_snapshots(
+                            retention_days=self.config.storage.retention_days,
+                            rollup_minutes=rollup_mins
+                        )
+                        if compacted > 0:
+                            logger.info(
+                                f"Database librarian: Compacted {compacted} rows older than "
+                                f"{self.config.storage.retention_days} days into {rollup_mins}-minute averages."
+                            )
                     except Exception as err:
-                        logger.warning(f"Database cleaning task had a hiccup: {err}")
+                        logger.warning(f"Database rollup task had a hiccup: {err}")
 
             except Exception as e:
                 logger.error(f"Error during polling cycle: {e}", exc_info=True)

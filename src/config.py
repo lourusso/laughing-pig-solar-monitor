@@ -96,8 +96,11 @@ class MQTTConfig(BaseModel):
 # Where the monitor saves its diary of snapshots so we can look back at history
 class StorageConfig(BaseModel):
     db_path: str = "data/solar.db"
-    # Keep up to 90 days of history before gently recycling very old entries
-    retention_days: int = 90
+    # Keep full high-speed 15-second snapshots for a whole year (365 days)!
+    retention_days: int = 365
+    # After 365 days, instead of throwing old history in the trash, we neatly
+    # average every 10 minutes of readings into a single summary row forever!
+    rollup_interval_minutes: int = 10
     # Even though we check the solar panels every 3 seconds for the live screen,
     # we only write in the disk notebook every 15 seconds so the hard drive stays cool and relaxed!
     db_save_interval_seconds: int = 15

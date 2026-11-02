@@ -55,7 +55,8 @@ mqtt:
 
 storage:
   db_path: "data/solar.db"
-  retention_days: 90
+  retention_days: 365
+  rollup_interval_minutes: 10
   db_save_interval_seconds: 15
 
 web:
