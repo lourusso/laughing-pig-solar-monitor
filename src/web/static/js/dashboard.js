@@ -1,12 +1,35 @@
 let powerChart = null;
 let socChart = null;
 
-// Backwards-compatible nullish coalescing helper (equivalent to a ?? b)
+// ==============================================================================
+// Dashboard JavaScript: Bringing the Solar Farm to Life on Screen!
+// ==============================================================================
+// This code is like an artist painting a moving picture:
+// Every 3 seconds, it checks the farm sensors, updates all the dials and cards,
+// and animates glowing rivers of electricity flowing between the sun, batteries,
+// and farm buildings!
+// ==============================================================================
+
+// Backwards-compatible nullish coalescing helper (equivalent to a ?? b).
+// Keeps older iPads and Safari browsers from crashing if a value is missing!
 function coalesce(val, fallback) {
   return (val !== undefined && val !== null) ? val : fallback;
 }
 
-// Update power flow connector animation, speed, and directional indicator
+// ------------------------------------------------------------------------------
+// Glowing River Animator (Power Flow Connectors)
+// ------------------------------------------------------------------------------
+// Think of the power lines on the dashboard like magical glowing rivers!
+// - If no electricity is moving (less than 15 Watts), the river goes to sleep (idle).
+// - The more Watts of electricity flowing, the faster the glowing river rushes!
+//   * Over 2,500 Watts: Rushing rapids (super fast!)
+//   * 1,200 to 2,500 Watts: Fast river
+//   * 400 to 1,200 Watts: Brisk jog
+//   * Under 400 Watts: Gentle stroll
+// - Direction arrows show which way the power is moving:
+//   * Forward: Sunshine filling the battery, or power lighting up the house!
+//   * Reverse: Energy flowing backwards into the grid or charger.
+// ------------------------------------------------------------------------------
 function updateFlowConnector(connId, streamId, arrowId, watts, direction, streamColorClass) {
   const conn = document.getElementById(connId);
   const stream = document.getElementById(streamId);
@@ -45,6 +68,13 @@ function updateFlowConnector(connId, streamId, arrowId, watts, direction, stream
   }
 }
 
+// ------------------------------------------------------------------------------
+// Fetch Live Telemetry: Checking in with the Farm Conductor!
+// ------------------------------------------------------------------------------
+// Every 3 seconds, this function rings up the server at "/api/live" and asks:
+// "What are the latest solar numbers right now?"
+// Then it updates every number and card on the dashboard!
+// ------------------------------------------------------------------------------
 async function fetchLiveTelemetry() {
   try {
     const res = await fetch("/api/live");

@@ -9,6 +9,16 @@ from .models import TelemetrySnapshot
 
 logger = logging.getLogger(__name__)
 
+# ==============================================================================
+# Database: The Farm's Electronic Solar Diary!
+# ==============================================================================
+# Every few seconds, our monitor takes a quick snapshot of the entire farm.
+# This Database class is our faithful scribe: it writes down every single reading
+# into a neat, organized SQLite notebook on the disk (`data/solar.db`).
+# That way, we can look back and see how much sunshine we harvested yesterday,
+# last week, or even three months ago!
+# ==============================================================================
+
 class Database:
     def __init__(self, db_path: str = "data/solar.db"):
         self.db_path = Path(db_path)
@@ -114,6 +124,10 @@ class Database:
             conn.commit()
 
     def save_snapshot(self, snapshot: TelemetrySnapshot) -> None:
+        """
+        Write a brand-new page into our electronic solar diary!
+        Every sensor reading from the snapshot gets filed neatly into its own column.
+        """
         sql = """
             INSERT OR REPLACE INTO snapshots (
                 timestamp, pv_dc_power_watts, pv_dc_volts, pv_dc_amps, pv_dc_daily_kwh,
@@ -187,18 +201,27 @@ class Database:
             logger.error(f"Error saving snapshot to database: {e}")
 
     def get_latest_snapshot(self) -> Optional[Dict[str, Any]]:
+        """
+        Open the solar diary to the very last page!
+        This gives us the most recent snapshot so we know what the farm is doing right now.
+        """
         with self._get_connection() as conn:
             cur = conn.execute("SELECT * FROM snapshots ORDER BY id DESC LIMIT 1;")
             row = cur.fetchone()
             if not row:
                 return None
             data = dict(row)
+            # If the database row doesn't have Fahrenheit yet, calculate it from Celsius!
+            # (Celsius * 1.8) + 32 = Fahrenheit
             if "battery_temp_f" not in data or data["battery_temp_f"] is None:
                 c = data.get("battery_temp_c", 25.0) or 25.0
                 data["battery_temp_f"] = round(c * 1.8 + 32.0, 1)
             return data
 
     def get_history(self, hours: int = 24, max_points: int = 300) -> List[Dict[str, Any]]:
+        """
+        Fetch historical records over the last few hours to draw charts and graphs.
+        """
         since = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
         with self._get_connection() as conn:
             cur = conn.execute("""
@@ -228,6 +251,10 @@ class Database:
             return [dict(rows[int(i * step)]) for i in range(max_points)]
 
     def export_csv(self, days: int = 7) -> str:
+        """
+        Export our diary records into a CSV spreadsheet!
+        You can open this file directly in Excel, Numbers, or Google Sheets to see the raw data.
+        """
         since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
         with self._get_connection() as conn:
             cur = conn.execute("SELECT * FROM snapshots WHERE timestamp >= ? ORDER BY timestamp ASC;", (since,))

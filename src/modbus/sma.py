@@ -8,6 +8,26 @@ from .client import ModbusTCPClient, ModbusError, to_uint_32, to_int_32
 
 logger = logging.getLogger(__name__)
 
+# ==============================================================================
+# SMA Sunny WebBox: The Farm's High-Tech Post Office & Translator!
+# ==============================================================================
+# What is a Sunny WebBox?
+# Think of the Sunny WebBox like a smart translator and post office!
+# Our farm has two powerful SMA machines:
+# 1. Sunny Island 6048 (The Heartbeat of the Farm):
+#    This big yellow inverter creates our microgrid! It takes DC battery power
+#    and creates clean, steady AC electricity (120 Volts, 60 Hz) for all farm
+#    appliances. It also talks over a digital CAN-bus cord to our Discover
+#    Lithium Battery's computer (LYNK II).
+# 2. Sunny Boy 4000 (The Solar Helper in the Shop):
+#    This inverter is mounted out in the shop. It takes sunshine from roof panels
+#    and feeds AC power directly into the shop's circuits!
+#
+# The WebBox asks both machines for their measurements over special data cables,
+# bundles their reports into clean digital letters (JSON-RPC), and hands them
+# to our solar monitor over the network!
+# ==============================================================================
+
 class SMAWebBox:
     """
     Driver for SMA Sunny WebBox monitoring gateway.

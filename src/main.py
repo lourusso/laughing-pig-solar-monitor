@@ -24,6 +24,21 @@ logging.basicConfig(
 )
 logger = logging.getLogger("lpsm.main")
 
+# ==============================================================================
+# Solar Monitor Service: The Farm's Orchestra Conductor!
+# ==============================================================================
+# Imagine our solar farm is a musical orchestra:
+# - The MidNite Classics are playing the sunny brass instruments (DC Solar).
+# - The Sunny Boy is playing the electric guitar (AC Solar in the shop).
+# - The Sunny Island & Discover Battery are playing the drums (keeping the rhythm).
+# - The eGauge is listening with its stethoscope to make sure everyone sounds great!
+#
+# SolarMonitorService is the Conductor! It leads all the musicians:
+# Every few seconds, it asks each gadget for their latest numbers, combines them
+# into one neat snapshot, writes the story in the database diary, and paints
+# the live dashboard on our computer and phone screens!
+# ==============================================================================
+
 class SolarMonitorService:
     def __init__(self, config: AppConfig):
         self.config = config
@@ -225,9 +240,23 @@ class SolarMonitorService:
         s3_feeder_watts = float(egauge_data.get("s3_shop_load_watts", 0.0))
         eg_freq = float(egauge_data.get("frequency_hz", 60.0))
 
-        # Farm Loads Formula: ((SB4000 Pac) - S3) + S1
-        # Net Shop Load: abs(pv_ac - s3_feeder_watts), always positive
-        # Farm Load: Shop Load + S1 House Load
+        # ======================================================================
+        # The Farm Loads Formula: ((SB4000 Pac) - S3) + S1
+        # ======================================================================
+        # Imagine electricity like water flowing through pipes across the farm:
+        # 1. In the Shop, the Sunny Boy inverter (SB4000) acts like a water fountain,
+        #    pumping fresh AC solar electricity into the shop's pipes.
+        # 2. CT S3 is a water flow meter sitting on the pipe leaving the Shop and
+        #    heading towards the Main House.
+        # 3. If tools in the shop are using power, the net power used by the Shop is:
+        #    Shop Load = |(Sunny Boy Solar Power) - (Power flowing on S3)|!
+        #    We always use the absolute value (positive number) because electrical
+        #    loads drink power!
+        # 4. In the Main House, CT S1 is a flow meter measuring all the electricity
+        #    entering the house (refrigerators, lights, TVs, fans).
+        # 5. So the Total Farm Load is: (Net Shop Load) + (Main House S1 Load)!
+        #    Formula: abs(pv_ac - s3_feeder_watts) + s1_house_watts
+        # ======================================================================
         use_farm_formula = hasattr(self.config, "egauge") and getattr(self.config.egauge, "use_for_farm_loads", True)
         use_s1_only = hasattr(self.config, "egauge") and getattr(self.config.egauge, "use_s1_for_house_loads", True)
 
@@ -344,6 +373,11 @@ class SolarMonitorService:
 
         res: Dict[str, Any] = {}
 
+        # Our Friendly Temperature Translator:
+        # Electronic chips and sensors often speak in Celsius (°C).
+        # But we want all our dashboards to speak in friendly Fahrenheit (°F)!
+        # The magic recipe to turn Celsius into Fahrenheit is: (Celsius * 1.8) + 32.
+        # This little helper checks every channel and translates any °C into °F!
         def _convert_channels_to_f(channels: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             converted = []
             for ch in channels:

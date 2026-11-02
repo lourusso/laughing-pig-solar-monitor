@@ -5,6 +5,19 @@ from .client import ModbusTCPClient, ModbusError, to_signed_16, to_uint_32
 
 logger = logging.getLogger(__name__)
 
+# ==============================================================================
+# Solar Charging Stages: How to Fill an Electric Tank!
+# ==============================================================================
+# Think of charging our big lithium battery like filling a water jug:
+# - BULK_MPPT: The jug is thirsty! We open the solar faucet wide open and pour in
+#   as much sunshine as the panels can harvest!
+# - ABSORB: The jug is almost full (around 85-95%). We slow down the water flow
+#   so it doesn't splash or overfill, gently topping it up to the brim.
+# - FLOAT: The jug is 100% full! We only trickle in tiny sips to keep it full
+#   while supplying whatever power the house needs.
+# - RESTING: The sun has set for the night! There are no solar rays, so the
+#   controller takes a cozy nap until the morning sun peeks over the horizon.
+# ==============================================================================
 STAGE_MAP = {
     0: "RESTING",
     3: "ABSORB",
@@ -16,23 +29,42 @@ STAGE_MAP = {
     18: "EQ_MPPT",
 }
 
+# ==============================================================================
+# MidNite Solar Classic: The Solar Power Wizard!
+# ==============================================================================
+# What does a MidNite Classic do?
+# Solar panels on the roof create high voltage electricity (like 80 to 120 Volts).
+# But our battery bank only wants about 52 Volts!
+# The MidNite Classic is an MPPT controller ("Maximum Power Point Tracker").
+# It acts like a high-tech electric transformer and wizard:
+# It constantly hunts for the perfect sweet spot of sunlight and converts
+# high-voltage solar rays into high-current, safe power for our battery!
+# ==============================================================================
 class MidNiteClassic:
     """
     Driver for MidNite Solar Classic MPPT Charge Controller via Modbus TCP.
     Reads real-time PV generation, battery charging stage, and temperatures.
     """
     def __init__(self, host: str = "192.168.42.129", port: int = 502, unit_id: int = 1, timeout: float = 3.0):
+        # House number (IP address) on our farm network, and port 502 (Modbus front door)
         self.client = ModbusTCPClient(host=host, port=port, timeout=timeout)
         self.unit_id = unit_id
         self.host = host
 
     def poll(self) -> Dict[str, Any]:
-        """Poll the Classic and return parsed telemetry."""
+        """
+        Poll the Classic and return parsed telemetry.
+        We ask the Classic to open its memory drawer (registers 4115 to 4140)
+        and read out the voltage, current, watts, and temperatures!
+        """
         try:
             # Read block from register 4115 to 4140 (26 registers)
             # Modbus 0-based address for register 4115 is 4114
             regs = self.client.read_holding_registers(unit_id=self.unit_id, address=4114, count=26)
 
+            # In the Classic's memory drawer, voltages and currents are multiplied by 10
+            # to save decimal points (for example, 52.4 Volts is saved as 524).
+            # Dividing by 10.0 gives us the real decimal number!
             bat_voltage = regs[0] / 10.0           # 4115: dispavgVbatt (V)
             pv_voltage = regs[1] / 10.0            # 4116: dispavgVpv (V)
             bat_current = to_signed_16(regs[2]) / 10.0  # 4117: IbattDisplayS (A)
@@ -54,6 +86,7 @@ class MidNiteClassic:
             total_kwh = ((lifetime_high << 16) + lifetime_low) / 10.0
 
             # 4132: Battery temperature, 4133: FET temp, 4134: PCB temp
+            # These are measured in Celsius, then converted to friendly Fahrenheit!
             bat_temp = to_signed_16(regs[17]) / 10.0 if len(regs) > 17 else 25.0
             fet_temp = to_signed_16(regs[18]) / 10.0 if len(regs) > 18 else 25.0
             pcb_temp = to_signed_16(regs[19]) / 10.0 if len(regs) > 19 else 25.0
