@@ -195,3 +195,10 @@ All relevant hardware manuals and register definitions are indexed in the [`Docu
 
 ### Synology NAS & Infrastructure
 - **[Synology NAS User's Guide (DSM 7.x)](Documentation/Syno_UsersGuide_NAServer_7_4_enu.pdf)**: Administration, package management, container deployment, and storage configuration.
+
+---
+
+## 🗺️ Planned Future Enhancements ([`TODO.md`](TODO.md))
+
+1. **Combined Solar PV Generation Detail Page**: Update the main dashboard's **Solar PV Generation** card so clicking into it opens a unified view displaying **both MidNite Solar Classic charge controllers (Classic #1 & Classic #2) and the SMA Sunny Boy 4000 (SB4000)** together on one page.
+2. **Public Mobile Power Flow Page (Cloudflare)**: Publish a locked-down public webpage showing only the mobile Power Flow view (via Cloudflare Worker "Push-to-Cloud" or Cloudflare Tunnel `cloudflared`). See [`TODO.md`](TODO.md) for full details.
