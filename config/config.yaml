@@ -1,6 +1,6 @@
 system:
   name: "Laughing Pig Solar"
-  poll_interval_seconds: 10
+  poll_interval_seconds: 3
   log_level: "INFO"
 
 modbus:
@@ -56,6 +56,7 @@ mqtt:
 storage:
   db_path: "data/solar.db"
   retention_days: 90
+  db_save_interval_seconds: 15
 
 web:
   host: "0.0.0.0"

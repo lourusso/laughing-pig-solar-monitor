@@ -1,7 +1,9 @@
+import http.client
 import logging
+import threading
 import urllib.request
 import xml.etree.ElementTree as ET
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 logger = logging.getLogger("solar_monitor.egauge")
 
@@ -48,6 +50,44 @@ class EGaugeClient:
         self.base_url = f"http://{self.host}:{self.port}"
         self.serial: str = "0x1c7f464e"
 
+        # Persistent Phone Line (HTTP Keep-Alive Connection):
+        # Instead of dialing the eGauge's phone number, asking one question, and hanging
+        # up every 3 seconds, we keep the telephone line open! This cuts network wait time in half.
+        self._conn: Optional[http.client.HTTPConnection] = None
+        self._lock = threading.Lock()
+        self._headers = {
+            "User-Agent": "LaughingPigSolarMonitor/2.0",
+            "Connection": "keep-alive"
+        }
+
+    def _fetch_xml(self) -> bytes:
+        """Fetch XML payload using a persistent HTTP keep-alive connection with automatic retry."""
+        with self._lock:
+            for attempt in range(2):
+                try:
+                    if self._conn is None:
+                        self._conn = http.client.HTTPConnection(self.host, self.port, timeout=self.timeout)
+                    self._conn.request("GET", "/cgi-bin/egauge?inst", headers=self._headers)
+                    resp = self._conn.getresponse()
+                    data = resp.read()
+                    if resp.status == 200 and data:
+                        return data
+                    # Reset connection if non-200 status
+                    self._close_locked()
+                except Exception as e:
+                    self._close_locked()
+                    if attempt == 1:
+                        raise e
+            raise RuntimeError("Empty response from eGauge")
+
+    def _close_locked(self):
+        if self._conn is not None:
+            try:
+                self._conn.close()
+            except Exception:
+                pass
+            self._conn = None
+
     def poll(self) -> Dict[str, Any]:
         """
         Poll instantaneous telemetry from eGauge.
@@ -56,14 +96,8 @@ class EGaugeClient:
         "Hello! Please tell us what the sensors are measuring right this second!"
         The eGauge replies in XML format (a digital recipe card).
         """
-        url = f"{self.base_url}/cgi-bin/egauge?inst"
         try:
-            req = urllib.request.Request(
-                url,
-                headers={"User-Agent": "LaughingPigSolarMonitor/2.0"}
-            )
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-                xml_data = resp.read()
+            xml_data = self._fetch_xml()
 
             # Parse the XML "storybook" sent back by the eGauge
             tree = ET.fromstring(xml_data)
@@ -189,5 +223,6 @@ class EGaugeClient:
         return data
 
     def close(self):
-        """Cleanup connection if needed."""
-        pass
+        """Cleanup persistent HTTP connection when shutting down."""
+        with self._lock:
+            self._close_locked()

@@ -16,8 +16,10 @@ from pydantic import BaseModel, Field
 # Overall rules for the whole solar monitor system
 class SystemConfig(BaseModel):
     name: str = "Laughing Pig Solar"
-    # How many seconds to wait before checking the solar panels again (like taking a heartbeat pulse every 10 seconds!)
-    poll_interval_seconds: int = 10
+    # How many seconds to wait before checking the solar panels again!
+    # Every 3 seconds matches the web browser refresh rate so the numbers on screen
+    # are always brand-new and lightning fast!
+    poll_interval_seconds: int = 3
     # How chatty the monitor should be in its logbook ("INFO" means write down the important milestones)
     log_level: str = "INFO"
 
@@ -96,6 +98,9 @@ class StorageConfig(BaseModel):
     db_path: str = "data/solar.db"
     # Keep up to 90 days of history before gently recycling very old entries
     retention_days: int = 90
+    # Even though we check the solar panels every 3 seconds for the live screen,
+    # we only write in the disk notebook every 15 seconds so the hard drive stays cool and relaxed!
+    db_save_interval_seconds: int = 15
 
 # The web dashboard server settings (what port to visit in your web browser!)
 class WebConfig(BaseModel):

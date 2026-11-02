@@ -129,8 +129,9 @@ class SolarMonitorService:
         self._device_failures: Dict[str, int] = {"classic1": 0, "classic2": 0, "webbox": 0, "egauge": 0}
         self._device_next_retry: Dict[str, float] = {"classic1": 0.0, "classic2": 0.0, "webbox": 0.0, "egauge": 0.0}
 
-        # Daily database cleaner timer (seconds)
+        # Daily database cleaner timer & disk write batch timer (seconds)
         self._last_prune_time: float = 0.0
+        self._last_db_save_time: float = 0.0
 
         self._pool = ThreadPoolExecutor(max_workers=4)
         self._running = False
@@ -168,6 +169,7 @@ class SolarMonitorService:
             self.webbox.close()
         if self.egauge:
             self.egauge.close()
+        self.db.close()
         self._pool.shutdown(wait=False)
 
     def poll_once(self) -> TelemetrySnapshot:
@@ -344,17 +346,23 @@ class SolarMonitorService:
             sunnyboy_online=bool(sb_data.get("online") or pv_ac > 0 or (bool(webbox_data.get("online")) and float(sb_data.get("energy_total_kwh", 0.0)) > 0))
         )
 
-        # 1. Save to the SQLite notebook on the disk for history
-        self.db.save_snapshot(snapshot)
-
-        # 2. Keep this brand-new reading right in fast RAM memory!
-        # When a browser asks for live solar data, we give it to them in less than 1 millisecond.
+        # 1. Keep this brand-new reading right in fast RAM memory!
+        # Every 3 seconds, browsers asking for "/api/live" get this fresh data in < 1 millisecond!
         self._latest_snapshot = snapshot
         self._latest_snapshot_dict = snapshot.model_dump()
 
-        # 3. Publish to MQTT for Home Assistant
+        # 2. Save to the SQLite notebook on the disk for history charts:
+        # We write immediately on the very first poll, and then once every `db_save_interval_seconds`
+        # (15 seconds) so we don't wear out the disk with constant writes while still keeping
+        # live screen updates super fast (every 3 seconds)!
+        db_save_interval = getattr(self.config.storage, "db_save_interval_seconds", 15)
+        if self._last_db_save_time == 0.0 or (time.time() - self._last_db_save_time >= db_save_interval):
+            self.db.save_snapshot(snapshot)
+            self._last_db_save_time = time.time()
+
+        # 3. Publish to MQTT for Home Assistant (reusing our already-built dictionary!)
         if self.mqtt:
-            self.mqtt.publish_snapshot(snapshot)
+            self.mqtt.publish_snapshot(snapshot, payload=self._latest_snapshot_dict)
 
         return snapshot
 
@@ -578,6 +586,15 @@ class SolarMonitorService:
 
         elif dev in ("sunny-boy", "sb"):
             sb = self._latest_webbox_full.get("sunny_boy", {})
+            if not sb:
+                snap = self._latest_snapshot_dict or self.db.get_latest_snapshot()
+                if snap:
+                    sb = {
+                        "online": bool(snap.get("sunnyboy_online")),
+                        "pv_power_watts": snap.get("pv_ac_power_watts", 0.0),
+                        "energy_total_kwh": snap.get("pv_ac_total_kwh", 0.0),
+                        "raw_channels": []
+                    }
             res = {
                 "device_id": "sunny-boy",
                 "device_name": "SMA Sunny Boy 4000",
@@ -678,7 +695,7 @@ class SolarMonitorService:
                 logger.error(f"Error during polling cycle: {e}", exc_info=True)
 
             elapsed = time.time() - start_t
-            sleep_time = max(1.0, interval - elapsed)
+            sleep_time = max(0.2, interval - elapsed)
             time.sleep(sleep_time)
 
 def run():

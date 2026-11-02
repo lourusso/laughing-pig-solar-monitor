@@ -2,12 +2,18 @@ import io
 import csv
 import logging
 import sqlite3
+import threading
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 from .models import TelemetrySnapshot
 
 logger = logging.getLogger(__name__)
+
+# Cutoff timestamp for our fresh history start:
+# Today (2026-11-01) at 3:15 PM Hawaii Standard Time (-10:00) is 2026-11-02T01:15:00+00:00 in UTC!
+HISTORY_RESET_KEY = "history_reset_20261101_1515"
+HISTORY_RESET_CUTOFF_UTC = "2026-11-02T01:15:00+00:00"
 
 # ==============================================================================
 # Database: The Farm's Electronic Solar Diary!
@@ -23,22 +29,34 @@ class Database:
     def __init__(self, db_path: str = "data/solar.db"):
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        # Keep our solar diary open on the desk (`self._conn`) with a polite
+        # talking stick (`self._lock`) so threads take turns without opening
+        # and closing the file cover every few seconds!
+        self._lock = threading.RLock()
+        self._conn: Optional[sqlite3.Connection] = None
+        # Fast RAM cache for historical chart queries (`/api/history`)
+        self._history_cache: Dict[Tuple[int, int], List[Dict[str, Any]]] = {}
         self._init_db()
 
     def _get_connection(self) -> sqlite3.Connection:
-        # Think of this connection like opening a notebook to write or read notes.
-        conn = sqlite3.connect(str(self.db_path), timeout=10.0)
-        conn.row_factory = sqlite3.Row
-        
-        # "PRAGMA synchronous=NORMAL" is like telling the notebook:
-        # "Write neatly and safely, but don't pause to lock the notebook in a safe after every single letter."
-        # This makes the database work much faster while keeping your data safe!
-        conn.execute("PRAGMA synchronous=NORMAL;")
-        return conn
+        # Think of this connection like keeping our notebook open on the desk
+        # instead of putting it back in the backpack after every single sentence!
+        if self._conn is None:
+            conn = sqlite3.connect(str(self.db_path), timeout=10.0, check_same_thread=False)
+            conn.row_factory = sqlite3.Row
+            # "PRAGMA synchronous=NORMAL" is like telling the notebook:
+            # "Write neatly and safely, but don't pause to lock the notebook in a safe after every single letter."
+            # This makes the database work much faster while keeping your data safe!
+            conn.execute("PRAGMA synchronous=NORMAL;")
+            conn.execute("PRAGMA temp_store=MEMORY;")
+            conn.execute("PRAGMA cache_size=-8000;")  # 8MB RAM page cache
+            self._conn = conn
+        return self._conn
 
     def _init_db(self):
         # We set up the notebook rules once right here when the monitor first turns on.
-        with self._get_connection() as conn:
+        with self._lock:
+            conn = self._get_connection()
             # WAL mode means "Write-Ahead Logging".
             # Imagine writing quick sticky notes first, then filing them neatly in the notebook.
             # It lets us read and write at the very same time without bumping into each other!
@@ -76,7 +94,7 @@ class Database:
             """)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_snapshots_time ON snapshots (timestamp);")
 
-            # Migrations for dual MidNite Classic support
+            # Migrations for dual MidNite Classic, eGauge Farm Loads, and Fahrenheit support
             classic_cols = [
                 ("classic_bat_volts", "REAL DEFAULT 0.0"),
                 ("classic1_power_watts", "REAL DEFAULT 0.0"),
@@ -121,7 +139,35 @@ class Database:
                     peak_load_power_watts REAL
                 );
             """)
-            conn.commit()
+
+            # System metadata table to remember one-time upgrades and cleanups
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS system_meta (
+                    key TEXT PRIMARY KEY,
+                    value TEXT
+                );
+            """)
+
+            # One-time fresh start at 3:15 PM today (2026-11-01 15:15 HST / 2026-11-02T01:15:00+00:00 UTC)
+            # Now that Farm Loads and Fahrenheit temperatures are accurate, we sweep away
+            # any older historical readings prior to 3:15 PM today!
+            cur = conn.execute("SELECT value FROM system_meta WHERE key = ?;", (HISTORY_RESET_KEY,))
+            if cur.fetchone() is None:
+                del_cur = conn.execute(
+                    "DELETE FROM snapshots WHERE timestamp < ?;",
+                    (HISTORY_RESET_CUTOFF_UTC,)
+                )
+                conn.execute("DELETE FROM daily_summaries;")
+                conn.execute(
+                    "INSERT OR REPLACE INTO system_meta (key, value) VALUES (?, ?);",
+                    (HISTORY_RESET_KEY, HISTORY_RESET_CUTOFF_UTC)
+                )
+                conn.commit()
+                logger.info(
+                    f"Cleared {del_cur.rowcount} historical snapshots prior to 3:15 PM today ({HISTORY_RESET_CUTOFF_UTC})."
+                )
+            else:
+                conn.commit()
 
     def save_snapshot(self, snapshot: TelemetrySnapshot) -> None:
         """
@@ -138,16 +184,18 @@ class Database:
                 classic2_bat_volts, classic2_stage, classic2_online,
                 pv_ac_power_watts, pv_ac_volts, pv_ac_total_kwh,
                 total_pv_power_watts, battery_soc, battery_soh, battery_volts,
-                battery_amps, battery_power_watts, battery_temp_c, load_power_watts,
+                battery_amps, battery_power_watts, battery_temp_c, battery_temp_f,
+                load_power_watts,
                 grid_gen_power_watts, generator_volts, generator_amps, generator_frequency,
                 ac_frequency_hz, ac_voltage_volts,
                 classic_online, webbox_online, sunnyboy_online,
                 egauge_online, house_load_watts, shop_load_watts, load_source,
                 warnings
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
         """
         try:
-            with self._get_connection() as conn:
+            with self._lock:
+                conn = self._get_connection()
                 conn.execute(sql, (
                     snapshot.timestamp,
                     snapshot.pv_dc_power_watts,
@@ -180,6 +228,7 @@ class Database:
                     snapshot.battery_amps,
                     snapshot.battery_power_watts,
                     snapshot.battery_temp_c,
+                    snapshot.battery_temp_f,
                     snapshot.load_power_watts,
                     snapshot.grid_gen_power_watts,
                     snapshot.generator_volts,
@@ -197,6 +246,8 @@ class Database:
                     snapshot.warnings
                 ))
                 conn.commit()
+                # Clear our RAM chart cache so the next chart request sees the new point!
+                self._history_cache.clear()
         except Exception as e:
             logger.error(f"Error saving snapshot to database: {e}")
 
@@ -205,7 +256,8 @@ class Database:
         Open the solar diary to the very last page!
         This gives us the most recent snapshot so we know what the farm is doing right now.
         """
-        with self._get_connection() as conn:
+        with self._lock:
+            conn = self._get_connection()
             cur = conn.execute("SELECT * FROM snapshots ORDER BY id DESC LIMIT 1;")
             row = cur.fetchone()
             if not row:
@@ -221,9 +273,16 @@ class Database:
     def get_history(self, hours: int = 24, max_points: int = 300) -> List[Dict[str, Any]]:
         """
         Fetch historical records over the last few hours to draw charts and graphs.
+        Uses our fast RAM cache (`self._history_cache`) so multiple browsers can view
+        charts without making the hard drive work!
         """
-        since = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
-        with self._get_connection() as conn:
+        cache_key = (hours, max_points)
+        with self._lock:
+            if cache_key in self._history_cache:
+                return self._history_cache[cache_key]
+
+            since = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
+            conn = self._get_connection()
             cur = conn.execute("""
                 SELECT timestamp, total_pv_power_watts, pv_dc_power_watts, pv_ac_power_watts,
                        classic1_power_watts, classic2_power_watts,
@@ -237,18 +296,20 @@ class Database:
             rows = cur.fetchall()
 
             if not rows:
-                return []
-
-            if len(rows) <= max_points:
+                res: List[Dict[str, Any]] = []
+            elif len(rows) <= max_points:
                 # If we only have a few points, convert all of them into easy-to-read dictionaries.
-                return [dict(r) for r in rows]
+                res = [dict(r) for r in rows]
+            else:
+                # Imagine you took 8,640 photos on a long summer road trip, but your photo album only holds 300 photos.
+                # Instead of making 8,640 expensive photo prints and throwing 8,340 in the trash,
+                # we pick only 300 evenly spaced photos across the day!
+                # This saves computer memory and makes the graphs pop up lightning fast!
+                step = len(rows) / max_points
+                res = [dict(rows[int(i * step)]) for i in range(max_points)]
 
-            # Imagine you took 8,640 photos on a long summer road trip, but your photo album only holds 300 photos.
-            # Instead of making 8,640 expensive photo prints and throwing 8,340 in the trash,
-            # we pick only 300 evenly spaced photos across the day!
-            # This saves computer memory and makes the graphs pop up lightning fast!
-            step = len(rows) / max_points
-            return [dict(rows[int(i * step)]) for i in range(max_points)]
+            self._history_cache[cache_key] = res
+            return res
 
     def export_csv(self, days: int = 7) -> str:
         """
@@ -256,7 +317,8 @@ class Database:
         You can open this file directly in Excel, Numbers, or Google Sheets to see the raw data.
         """
         since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
-        with self._get_connection() as conn:
+        with self._lock:
+            conn = self._get_connection()
             cur = conn.execute("SELECT * FROM snapshots WHERE timestamp >= ? ORDER BY timestamp ASC;", (since,))
             rows = cur.fetchall()
 
@@ -273,7 +335,20 @@ class Database:
         # It tidies up by sweeping away any solar snapshots older than 90 days.
         # That way our computer storage never gets full of stale, dusty data!
         cutoff = (datetime.now(timezone.utc) - timedelta(days=retention_days)).isoformat()
-        with self._get_connection() as conn:
+        with self._lock:
+            conn = self._get_connection()
             cur = conn.execute("DELETE FROM snapshots WHERE timestamp < ?;", (cutoff,))
             conn.commit()
+            if cur.rowcount > 0:
+                self._history_cache.clear()
             return cur.rowcount
+
+    def close(self) -> None:
+        """Close the persistent SQLite connection cleanly when shutting down."""
+        with self._lock:
+            if self._conn is not None:
+                try:
+                    self._conn.close()
+                except Exception:
+                    pass
+                self._conn = None

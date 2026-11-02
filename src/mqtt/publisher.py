@@ -25,6 +25,8 @@ class MQTTPublisher:
         self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="laughing_pig_monitor")
         self._connected = False
         self._discovery_sent = False
+        # Remember the last value sent to each sub-topic so we only broadcast when a number actually changes!
+        self._last_sub_values: Dict[str, str] = {}
 
         if username:
             self.client.username_pw_set(username, password)
@@ -50,6 +52,7 @@ class MQTTPublisher:
         if rc == 0:
             logger.info(f"Connected to MQTT broker at {self.broker}:{self.port}")
             self._connected = True
+            self._last_sub_values.clear()
             if self.ha_discovery and not self._discovery_sent:
                 self.publish_ha_discovery()
                 self._discovery_sent = True
@@ -60,17 +63,18 @@ class MQTTPublisher:
         logger.info(f"Disconnected from MQTT broker (rc={rc})")
         self._connected = False
 
-    def publish_snapshot(self, snapshot: TelemetrySnapshot):
+    def publish_snapshot(self, snapshot: TelemetrySnapshot, payload: Optional[Dict[str, Any]] = None):
         if not self._connected:
             return
 
-        payload = snapshot.model_dump()
+        if payload is None:
+            payload = snapshot.model_dump()
         state_topic = f"{self.topic_prefix}/state"
         
         try:
             self.client.publish(state_topic, json.dumps(payload), qos=0, retain=True)
 
-            # Also publish individual key topics
+            # Also publish individual key topics, but ONLY if their value changed since last time!
             sub_topics = {
                 "solar/total_power": snapshot.total_pv_power_watts,
                 "solar/dc_power": snapshot.pv_dc_power_watts,
@@ -86,11 +90,15 @@ class MQTTPublisher:
                 "battery/volts": snapshot.battery_volts,
                 "battery/amps": snapshot.battery_amps,
                 "battery/power": snapshot.battery_power_watts,
+                "battery/temp_f": snapshot.battery_temp_f,
                 "load/power": snapshot.load_power_watts,
                 "grid_gen/power": snapshot.grid_gen_power_watts,
             }
             for sub, val in sub_topics.items():
-                self.client.publish(f"{self.topic_prefix}/{sub}", str(val), qos=0, retain=True)
+                str_val = str(val)
+                if self._last_sub_values.get(sub) != str_val:
+                    self._last_sub_values[sub] = str_val
+                    self.client.publish(f"{self.topic_prefix}/{sub}", str_val, qos=0, retain=True)
 
         except Exception as e:
             logger.warning(f"Failed to publish MQTT snapshot: {e}")

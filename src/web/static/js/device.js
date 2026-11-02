@@ -17,6 +17,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const diagSearch = document.getElementById("diag-search");
 
   let rawRowsData = [];
+  let lastPayloadJson = "";
 
   // Filter diagnostics table on search input
   diagSearch.addEventListener("input", (e) => {
@@ -74,10 +75,21 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function fetchDeviceTelemetry() {
+    if (document.hidden) return;
     try {
       const resp = await fetch(`/api/device/${deviceId}`);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const data = await resp.json();
+      const text = await resp.text();
+      const now = new Date();
+      badgeUpdated.textContent = `Last Polled: ${now.toLocaleTimeString()}`;
+
+      // If the device telemetry payload hasn't changed since the last poll,
+      // don't tear down and rebuild the entire DOM tree!
+      if (text === lastPayloadJson) {
+        return;
+      }
+      lastPayloadJson = text;
+      const data = JSON.parse(text);
 
       updateDeviceUI(data);
     } catch (err) {
@@ -991,4 +1003,10 @@ document.addEventListener("DOMContentLoaded", () => {
   // Initial fetch and 3-second polling interval
   fetchDeviceTelemetry();
   setInterval(fetchDeviceTelemetry, 3000);
+
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) {
+      fetchDeviceTelemetry();
+    }
+  });
 });

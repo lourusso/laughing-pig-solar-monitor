@@ -1,5 +1,6 @@
 from __future__ import annotations
 import logging
+import time
 from typing import Dict, Any, Optional, List
 from .client import ModbusTCPClient, ModbusError, to_signed_16, to_uint_32
 
@@ -50,17 +51,33 @@ class MidNiteClassic:
         self.client = ModbusTCPClient(host=host, port=port, timeout=timeout)
         self.unit_id = unit_id
         self.host = host
+        # Permanent memory for factory info that never changes (model, MAC address, build date)
+        self._unit_info_cache: Optional[Dict[str, Any]] = None
+        # 60-second memory for charge setpoints that rarely change
+        self._cfg_cache: Optional[Dict[str, Any]] = None
+        self._cfg_cache_time: float = 0.0
+
+    @staticmethod
+    def _fmt_time(sec: int) -> str:
+        h = sec // 3600
+        m = (sec % 3600) // 60
+        s = sec % 60
+        if h > 0:
+            return f"{h}h {m}m {s}s"
+        if m > 0:
+            return f"{m}m {s}s"
+        return f"{s}s"
 
     def poll(self) -> Dict[str, Any]:
         """
         Poll the Classic and return parsed telemetry.
-        We ask the Classic to open its memory drawer (registers 4115 to 4140)
-        and read out the voltage, current, watts, and temperatures!
+        We ask the Classic to open its memory drawer (registers 4115 to 4144)
+        and read out all 30 registers in one single trip!
         """
         try:
-            # Read block from register 4115 to 4140 (26 registers)
+            # Read block from register 4115 to 4144 (30 registers) in one single packet!
             # Modbus 0-based address for register 4115 is 4114
-            regs = self.client.read_holding_registers(unit_id=self.unit_id, address=4114, count=26)
+            regs = self.client.read_holding_registers(unit_id=self.unit_id, address=4114, count=30)
 
             # In the Classic's memory drawer, voltages and currents are multiplied by 10
             # to save decimal points (for example, 52.4 Volts is saved as 524).
@@ -78,6 +95,8 @@ class MidNiteClassic:
 
             pv_current = regs[6] / 10.0            # 4121: PvInputCurrent (A)
             voc_volts = regs[7] / 10.0             # 4122: VocLastMeasured (V)
+            pv_highest_v = regs[8] / 10.0 if len(regs) > 8 else 0.0  # 4123: HighestVinputLog (V)
+            amphours_today = regs[10] if len(regs) > 10 else 0       # 4125: AmpHours
             
             # 4126 & 4127: Lifetime Energy Total (kWh)
             # Reg 4126 is low word, 4127 is high word
@@ -85,11 +104,20 @@ class MidNiteClassic:
             lifetime_high = regs[12]
             total_kwh = ((lifetime_high << 16) + lifetime_low) / 10.0
 
+            lifetime_amphours = ((regs[14] << 16) + regs[13]) if len(regs) > 14 else 0
+
             # 4132: Battery temperature, 4133: FET temp, 4134: PCB temp
             # These are measured in Celsius, then converted to friendly Fahrenheit!
             bat_temp = to_signed_16(regs[17]) / 10.0 if len(regs) > 17 else 25.0
             fet_temp = to_signed_16(regs[18]) / 10.0 if len(regs) > 18 else 25.0
             pcb_temp = to_signed_16(regs[19]) / 10.0 if len(regs) > 19 else 25.0
+
+            night_minutes = regs[20] if len(regs) > 20 else 0
+            float_sec = regs[23] if len(regs) > 23 else 0
+            absorb_sec = regs[24] if len(regs) > 24 else 0
+            pwm_duty = regs[26] if len(regs) > 26 else 0
+            reset_reason = regs[27] if len(regs) > 27 else 0
+            equalize_sec = regs[28] if len(regs) > 28 else 0
 
             return {
                 "online": True,
@@ -97,10 +125,13 @@ class MidNiteClassic:
                 "pv_voltage": pv_voltage,
                 "pv_current": pv_current,
                 "pv_voc": voc_volts,
+                "pv_highest_v": pv_highest_v,
                 "battery_voltage": bat_voltage,
                 "battery_current": bat_current,
                 "energy_today_kwh": energy_today,
                 "energy_total_kwh": total_kwh,
+                "amphours_today": amphours_today,
+                "lifetime_amphours": lifetime_amphours,
                 "charge_stage": stage_str,
                 "pcb_temp_c": pcb_temp,
                 "fet_temp_c": fet_temp,
@@ -108,6 +139,15 @@ class MidNiteClassic:
                 "pcb_temp_f": round(pcb_temp * 1.8 + 32.0, 1),
                 "fet_temp_f": round(fet_temp * 1.8 + 32.0, 1),
                 "battery_temp_f": round(bat_temp * 1.8 + 32.0, 1),
+                "night_minutes": night_minutes,
+                "float_time_today_sec": float_sec,
+                "float_time_today_str": self._fmt_time(float_sec),
+                "absorb_time_sec": absorb_sec,
+                "absorb_time_str": self._fmt_time(absorb_sec),
+                "pwm_duty": pwm_duty,
+                "reset_reason": reset_reason,
+                "equalize_time_sec": equalize_sec,
+                "equalize_time_str": self._fmt_time(equalize_sec),
                 "error": None
             }
 
@@ -141,153 +181,137 @@ class MidNiteClassic:
 
         data = dict(base_data)
         registers = []
+        fmt_time = self._fmt_time
 
-        # Helper to format seconds
-        def fmt_time(sec: int) -> str:
-            h = sec // 3600
-            m = (sec % 3600) // 60
-            s = sec % 60
-            if h > 0:
-                return f"{h}h {m}m {s}s"
-            if m > 0:
-                return f"{m}m {s}s"
-            return f"{s}s"
+        # 1. Reuse the 30 registers (4115 - 4144) already fetched in `self.poll()`!
+        # No need to bother the Classic a second time for the exact same drawer!
+        reg_defs_main = [
+            (4115, "dispavgVbatt", "Average Battery Voltage", f"{data['battery_voltage']} V"),
+            (4116, "dispavgVpv", "Average PV Input Voltage", f"{data['pv_voltage']} V"),
+            (4117, "IbattDisplayS", "Average Battery Current", f"{data['battery_current']} A"),
+            (4118, "kW-Hours", "Daily Solar Energy Yield", f"{data['energy_today_kwh']} kWh"),
+            (4119, "Watts", "Instantaneous Power", f"{data['pv_power_watts']} W"),
+            (4120, "ComboChargeStage", "Active Charge Stage", data['charge_stage']),
+            (4121, "PvInputCurrent", "Average PV Input Current", f"{data['pv_current']} A"),
+            (4122, "VocLastMeasured", "Last Measured Voc", f"{data['pv_voc']} V"),
+            (4123, "HighestVinputLog", "Highest PV Input Voltage", f"{data.get('pv_highest_v', 0.0)} V"),
+            (4125, "AmpHours", "Daily Amp-Hours", f"{data.get('amphours_today', 0)} Ah"),
+            (4126, "Lifetime kW-Hours", "Lifetime Energy Generation", f"{data['energy_total_kwh']} kWh"),
+            (4128, "LifetimeAmpHours", "Lifetime Amp-Hours", f"{data.get('lifetime_amphours', 0)} Ah"),
+            (4132, "BATTtemperature", "Battery Temp Sensor", f"{data.get('battery_temp_f', round(data['battery_temp_c']*1.8+32, 1)):.1f} °F"),
+            (4133, "FETtemperature", "Power FET Temperature", f"{data.get('fet_temp_f', round(data['fet_temp_c']*1.8+32, 1)):.1f} °F"),
+            (4134, "PCBTemperature", "PCB Control Board Temp", f"{data.get('pcb_temp_f', round(data['pcb_temp_c']*1.8+32, 1)):.1f} °F"),
+            (4135, "NiteMinutesNoPwr", "Night Minutes (No Solar)", f"{data.get('night_minutes', 0)} min"),
+            (4138, "FloatTimeToday", "Time in Float Stage Today", data.get('float_time_today_str', '0s')),
+            (4139, "AbsorbTime", "Absorb Time Counter", data.get('absorb_time_str', '0s')),
+            (4141, "PWM_ReadOnly", "PWM Duty Cycle Command", f"{data.get('pwm_duty', 0)}"),
+            (4142, "Reason_For_Reset", "Reset Reason Code", f"{data.get('reset_reason', 0)}"),
+            (4143, "Equalize Time", "Equalize Time Remaining", data.get('equalize_time_str', '0s'))
+        ]
+        for r_num, r_name, r_desc, r_val in reg_defs_main:
+            registers.append({"register": r_num, "name": r_name, "description": r_desc, "value": r_val})
 
-        # 1. Read Block 4115 - 4144 (30 registers from 4114)
-        try:
-            regs_main = self.client.read_holding_registers(unit_id=self.unit_id, address=4114, count=30)
-            
-            data["pv_highest_v"] = regs_main[8] / 10.0 if len(regs_main) > 8 else 0.0
-            data["amphours_today"] = regs_main[10] if len(regs_main) > 10 else 0
-            
-            if len(regs_main) > 14:
-                data["lifetime_amphours"] = (regs_main[14] << 16) + regs_main[13]
-            else:
-                data["lifetime_amphours"] = 0
+        # 2. Unit info & build date (4101 - 4114):
+        # Since a controller's MAC address and factory birthday never change, we only
+        # read this drawer once and remember it forever in `self._unit_info_cache`!
+        if self._unit_info_cache is None:
+            try:
+                regs_info = self.client.read_holding_registers(unit_id=self.unit_id, address=4100, count=14)
+                if len(regs_info) >= 8:
+                    pcb_rev = (regs_info[0] >> 8) & 0xFF
+                    unit_code = regs_info[0] & 0xFF
+                    model_map = {150: "Classic 150", 200: "Classic 200", 250: "Classic 250", 251: "Classic 250-KS"}
+                    model_str = model_map.get(unit_code, f"Classic {unit_code}")
+                    yr = regs_info[1]
+                    mo = (regs_info[2] >> 8) & 0xFF
+                    dy = regs_info[2] & 0xFF
+                    sw_date = f"{yr:04d}-{mo:02d}-{dy:02d}"
+                    mac_bytes = [
+                        (regs_info[7] >> 8) & 0xFF, regs_info[7] & 0xFF,
+                        (regs_info[6] >> 8) & 0xFF, regs_info[6] & 0xFF,
+                        (regs_info[5] >> 8) & 0xFF, regs_info[5] & 0xFF
+                    ]
+                    mac_address = ":".join(f"{b:02X}" for b in mac_bytes)
+                    dev_id = ((regs_info[11] << 16) + regs_info[10]) if len(regs_info) >= 12 else "--"
+                    self._unit_info_cache = {
+                        "data": {
+                            "model_name": model_str,
+                            "pcb_rev": pcb_rev,
+                            "sw_date": sw_date,
+                            "mac_address": mac_address,
+                            "device_id": dev_id,
+                        },
+                        "registers": [
+                            {"register": 4101, "name": "UNIT_ID", "description": "Model & PCB Revision", "value": f"{model_str} (PCB Rev {pcb_rev})"},
+                            {"register": 4102, "name": "UNIT_SW_DATE", "description": "Firmware Build Date", "value": sw_date},
+                            {"register": 4106, "name": "UNIT_MAC_Address", "description": "Ethernet MAC Address", "value": mac_address},
+                            {"register": 4111, "name": "UNIT_Device_ID", "description": "Factory Unit Device ID", "value": str(dev_id)}
+                        ]
+                    }
+            except Exception as e:
+                logger.debug(f"Could not read unit info registers: {e}")
 
-            data["night_minutes"] = regs_main[20] if len(regs_main) > 20 else 0
-            data["float_time_today_sec"] = regs_main[23] if len(regs_main) > 23 else 0
-            data["float_time_today_str"] = fmt_time(data["float_time_today_sec"])
-            
-            data["absorb_time_sec"] = regs_main[24] if len(regs_main) > 24 else 0
-            data["absorb_time_str"] = fmt_time(data["absorb_time_sec"])
-            
-            data["pwm_duty"] = regs_main[26] if len(regs_main) > 26 else 0
-            data["reset_reason"] = regs_main[27] if len(regs_main) > 27 else 0
-            
-            data["equalize_time_sec"] = regs_main[28] if len(regs_main) > 28 else 0
-            data["equalize_time_str"] = fmt_time(data["equalize_time_sec"])
+        if self._unit_info_cache:
+            data.update(self._unit_info_cache["data"])
+            registers.extend(self._unit_info_cache["registers"])
 
-            # Register entries for table
-            reg_defs_main = [
-                (4115, "dispavgVbatt", "Average Battery Voltage", f"{data['battery_voltage']} V"),
-                (4116, "dispavgVpv", "Average PV Input Voltage", f"{data['pv_voltage']} V"),
-                (4117, "IbattDisplayS", "Average Battery Current", f"{data['battery_current']} A"),
-                (4118, "kW-Hours", "Daily Solar Energy Yield", f"{data['energy_today_kwh']} kWh"),
-                (4119, "Watts", "Instantaneous Power", f"{data['pv_power_watts']} W"),
-                (4120, "ComboChargeStage", "Active Charge Stage", data['charge_stage']),
-                (4121, "PvInputCurrent", "Average PV Input Current", f"{data['pv_current']} A"),
-                (4122, "VocLastMeasured", "Last Measured Voc", f"{data['pv_voc']} V"),
-                (4123, "HighestVinputLog", "Highest PV Input Voltage", f"{data['pv_highest_v']} V"),
-                (4125, "AmpHours", "Daily Amp-Hours", f"{data['amphours_today']} Ah"),
-                (4126, "Lifetime kW-Hours", "Lifetime Energy Generation", f"{data['energy_total_kwh']} kWh"),
-                (4128, "LifetimeAmpHours", "Lifetime Amp-Hours", f"{data['lifetime_amphours']} Ah"),
-                (4132, "BATTtemperature", "Battery Temp Sensor", f"{data.get('battery_temp_f', round(data['battery_temp_c']*1.8+32, 1)):.1f} °F"),
-                (4133, "FETtemperature", "Power FET Temperature", f"{data.get('fet_temp_f', round(data['fet_temp_c']*1.8+32, 1)):.1f} °F"),
-                (4134, "PCBTemperature", "PCB Control Board Temp", f"{data.get('pcb_temp_f', round(data['pcb_temp_c']*1.8+32, 1)):.1f} °F"),
-                (4135, "NiteMinutesNoPwr", "Night Minutes (No Solar)", f"{data['night_minutes']} min"),
-                (4138, "FloatTimeToday", "Time in Float Stage Today", data['float_time_today_str']),
-                (4139, "AbsorbTime", "Absorb Time Counter", data['absorb_time_str']),
-                (4141, "PWM_ReadOnly", "PWM Duty Cycle Command", f"{data['pwm_duty']}"),
-                (4142, "Reason_For_Reset", "Reset Reason Code", f"{data['reset_reason']}"),
-                (4143, "Equalize Time", "Equalize Time Remaining", data['equalize_time_str'])
-            ]
-            for r_num, r_name, r_desc, r_val in reg_defs_main:
-                registers.append({"register": r_num, "name": r_name, "description": r_desc, "value": r_val})
+        # 3 & 4. Configuration Setpoints (4153-4165 & 4244-4250):
+        # Charge setpoints rarely change, so we cache them for 60 seconds!
+        now = time.time()
+        if self._cfg_cache is None or (now - self._cfg_cache_time > 60.0):
+            cfg_data: Dict[str, Any] = {}
+            cfg_regs: List[Dict[str, Any]] = []
+            try:
+                regs_cfg = self.client.read_holding_registers(unit_id=self.unit_id, address=4152, count=13)
+                if len(regs_cfg) >= 12:
+                    cfg_data["absorb_setpoint_sec"] = regs_cfg[1]
+                    cfg_data["absorb_setpoint_str"] = fmt_time(regs_cfg[1])
+                    cfg_data["max_temp_comp_v"] = regs_cfg[2] / 10.0
+                    cfg_data["min_temp_comp_v"] = regs_cfg[3] / 10.0
+                    cfg_data["temp_comp_mv_c_cell"] = -(regs_cfg[4] / 10.0)
+                    cfg_data["equalize_setpoint_sec"] = regs_cfg[9]
+                    cfg_data["equalize_setpoint_str"] = fmt_time(regs_cfg[9])
+                    cfg_data["equalize_interval_days"] = regs_cfg[10]
+                    mppt_mode_code = regs_cfg[11]
+                    mppt_modes = {0: "Solar", 1: "PV U-Set", 2: "Wind Track", 3: "Dynamic", 4: "U-Set 2"}
+                    cfg_data["mppt_mode"] = mppt_modes.get(mppt_mode_code, f"Mode {mppt_mode_code}")
 
-        except Exception as e:
-            logger.debug(f"Could not read extended registers 4115-4144: {e}")
+                    cfg_regs.extend([
+                        {"register": 4154, "name": "Absorb Time Setpoint", "description": "Absorb Duration Setting", "value": cfg_data["absorb_setpoint_str"]},
+                        {"register": 4155, "name": "Max Temp Comp Volts", "description": "Maximum Temp-Comp Voltage", "value": f"{cfg_data['max_temp_comp_v']} V"},
+                        {"register": 4156, "name": "Min Temp Comp Volts", "description": "Minimum Temp-Comp Voltage", "value": f"{cfg_data['min_temp_comp_v']} V"},
+                        {"register": 4157, "name": "Temp Comp Slope", "description": "Battery Temp Compensation", "value": f"{cfg_data['temp_comp_mv_c_cell'] / 1.8:.2f} mV/°F/cell"},
+                        {"register": 4162, "name": "Equalize Time Setpoint", "description": "Equalize Duration Setting", "value": cfg_data["equalize_setpoint_str"]},
+                        {"register": 4163, "name": "Equalize Interval", "description": "Auto-Equalize Interval", "value": f"{cfg_data['equalize_interval_days']} Days"},
+                        {"register": 4164, "name": "MPPT Mode", "description": "Tracking Algorithm Mode", "value": cfg_data["mppt_mode"]}
+                    ])
+            except Exception as e:
+                logger.debug(f"Could not read setpoint registers 4153-4165: {e}")
 
-        # 2. Read Block 4101 - 4114 (14 registers from 4100): Unit info & build date
-        try:
-            regs_info = self.client.read_holding_registers(unit_id=self.unit_id, address=4100, count=14)
-            if len(regs_info) >= 8:
-                pcb_rev = (regs_info[0] >> 8) & 0xFF
-                unit_code = regs_info[0] & 0xFF
-                model_map = {150: "Classic 150", 200: "Classic 200", 250: "Classic 250", 251: "Classic 250-KS"}
-                model_str = model_map.get(unit_code, f"Classic {unit_code}")
-                data["model_name"] = model_str
-                data["pcb_rev"] = pcb_rev
-                
-                yr = regs_info[1]
-                mo = (regs_info[2] >> 8) & 0xFF
-                dy = regs_info[2] & 0xFF
-                data["sw_date"] = f"{yr:04d}-{mo:02d}-{dy:02d}"
-                
-                mac_bytes = [
-                    (regs_info[7] >> 8) & 0xFF, regs_info[7] & 0xFF,
-                    (regs_info[6] >> 8) & 0xFF, regs_info[6] & 0xFF,
-                    (regs_info[5] >> 8) & 0xFF, regs_info[5] & 0xFF
-                ]
-                data["mac_address"] = ":".join(f"{b:02X}" for b in mac_bytes)
-                if len(regs_info) >= 12:
-                    data["device_id"] = (regs_info[11] << 16) + regs_info[10]
-                
-                registers.extend([
-                    {"register": 4101, "name": "UNIT_ID", "description": "Model & PCB Revision", "value": f"{model_str} (PCB Rev {pcb_rev})"},
-                    {"register": 4102, "name": "UNIT_SW_DATE", "description": "Firmware Build Date", "value": data.get("sw_date", "--")},
-                    {"register": 4106, "name": "UNIT_MAC_Address", "description": "Ethernet MAC Address", "value": data.get("mac_address", "--")},
-                    {"register": 4111, "name": "UNIT_Device_ID", "description": "Factory Unit Device ID", "value": str(data.get("device_id", "--"))}
-                ])
-        except Exception as e:
-            logger.debug(f"Could not read unit info registers: {e}")
+            try:
+                regs_reg = self.client.read_holding_registers(unit_id=self.unit_id, address=4243, count=7)
+                if len(regs_reg) >= 6:
+                    cfg_data["temp_comp_target_v"] = regs_reg[0] / 10.0
+                    cfg_data["nominal_bat_v"] = regs_reg[1]
+                    cfg_data["ending_amps"] = regs_reg[2] / 10.0
+                    cfg_data["rebulk_v"] = regs_reg[5] / 10.0
 
-        # 3. Read Block 4153 - 4165 (13 registers from 4152): Setpoints & Configuration
-        try:
-            regs_cfg = self.client.read_holding_registers(unit_id=self.unit_id, address=4152, count=13)
-            if len(regs_cfg) >= 12:
-                data["absorb_setpoint_sec"] = regs_cfg[1]
-                data["absorb_setpoint_str"] = fmt_time(regs_cfg[1])
-                data["max_temp_comp_v"] = regs_cfg[2] / 10.0
-                data["min_temp_comp_v"] = regs_cfg[3] / 10.0
-                data["temp_comp_mv_c_cell"] = -(regs_cfg[4] / 10.0)
-                data["equalize_setpoint_sec"] = regs_cfg[9]
-                data["equalize_setpoint_str"] = fmt_time(regs_cfg[9])
-                data["equalize_interval_days"] = regs_cfg[10]
-                
-                mppt_mode_code = regs_cfg[11]
-                mppt_modes = {0: "Solar", 1: "PV U-Set", 2: "Wind Track", 3: "Dynamic", 4: "U-Set 2"}
-                data["mppt_mode"] = mppt_modes.get(mppt_mode_code, f"Mode {mppt_mode_code}")
+                    cfg_regs.extend([
+                        {"register": 4244, "name": "VbattRegSetPTmpComp", "description": "Temp-Compensated Regulation Target", "value": f"{cfg_data['temp_comp_target_v']} V"},
+                        {"register": 4245, "name": "VbattNominal", "description": "Nominal Battery Bank Voltage", "value": f"{cfg_data['nominal_bat_v']} V"},
+                        {"register": 4246, "name": "EndingAmps", "description": "Absorb Ending Current", "value": f"{cfg_data['ending_amps']} A"},
+                        {"register": 4249, "name": "RebulkVolts", "description": "Rebulk Trigger Voltage", "value": f"{cfg_data['rebulk_v']} V"}
+                    ])
+            except Exception as e:
+                logger.debug(f"Could not read regulation registers 4244-4250: {e}")
 
-                registers.extend([
-                    {"register": 4154, "name": "Absorb Time Setpoint", "description": "Absorb Duration Setting", "value": data["absorb_setpoint_str"]},
-                    {"register": 4155, "name": "Max Temp Comp Volts", "description": "Maximum Temp-Comp Voltage", "value": f"{data['max_temp_comp_v']} V"},
-                    {"register": 4156, "name": "Min Temp Comp Volts", "description": "Minimum Temp-Comp Voltage", "value": f"{data['min_temp_comp_v']} V"},
-                    {"register": 4157, "name": "Temp Comp Slope", "description": "Battery Temp Compensation", "value": f"{data['temp_comp_mv_c_cell'] / 1.8:.2f} mV/°F/cell"},
-                    {"register": 4162, "name": "Equalize Time Setpoint", "description": "Equalize Duration Setting", "value": data["equalize_setpoint_str"]},
-                    {"register": 4163, "name": "Equalize Interval", "description": "Auto-Equalize Interval", "value": f"{data['equalize_interval_days']} Days"},
-                    {"register": 4164, "name": "MPPT Mode", "description": "Tracking Algorithm Mode", "value": data["mppt_mode"]}
-                ])
-        except Exception as e:
-            logger.debug(f"Could not read setpoint registers 4153-4165: {e}")
+            if cfg_data:
+                self._cfg_cache = {"data": cfg_data, "registers": cfg_regs}
+                self._cfg_cache_time = now
 
-        # 4. Read Block 4244 - 4250 (7 registers from 4243): Regulation & nominal battery voltage
-        try:
-            regs_reg = self.client.read_holding_registers(unit_id=self.unit_id, address=4243, count=7)
-            if len(regs_reg) >= 6:
-                data["temp_comp_target_v"] = regs_reg[0] / 10.0
-                data["nominal_bat_v"] = regs_reg[1]
-                data["ending_amps"] = regs_reg[2] / 10.0
-                data["rebulk_v"] = regs_reg[5] / 10.0
-
-                registers.extend([
-                    {"register": 4244, "name": "VbattRegSetPTmpComp", "description": "Temp-Compensated Regulation Target", "value": f"{data['temp_comp_target_v']} V"},
-                    {"register": 4245, "name": "VbattNominal", "description": "Nominal Battery Bank Voltage", "value": f"{data['nominal_bat_v']} V"},
-                    {"register": 4246, "name": "EndingAmps", "description": "Absorb Ending Current", "value": f"{data['ending_amps']} A"},
-                    {"register": 4249, "name": "RebulkVolts", "description": "Rebulk Trigger Voltage", "value": f"{data['rebulk_v']} V"}
-                ])
-        except Exception as e:
-            logger.debug(f"Could not read regulation registers 4244-4250: {e}")
+        if self._cfg_cache:
+            data.update(self._cfg_cache["data"])
+            registers.extend(self._cfg_cache["registers"])
 
         # Calculate Fahrenheit temperatures
         for t_key in ["battery_temp_c", "fet_temp_c", "pcb_temp_c"]:

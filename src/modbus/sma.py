@@ -1,7 +1,9 @@
 from __future__ import annotations
+import http.client
 import json
 import logging
-import urllib.request
+import socket
+import threading
 import urllib.parse
 from typing import Dict, Any, Optional, List
 from .client import ModbusTCPClient, ModbusError, to_uint_32, to_int_32
@@ -55,23 +57,11 @@ class SMAWebBox:
         self.timeout = timeout
         self.modbus_client = ModbusTCPClient(host=host, port=modbus_port, timeout=timeout)
 
-    def poll(self) -> Dict[str, Any]:
-        """
-        Polls Sunny Island and Sunny Boy telemetry.
-        Uses WebBox RPC protocol for rich native channel data with Modbus TCP support.
-        """
-        # Primary polling: Sunny WebBox JSON-RPC
-        rpc_data = self._poll_rpc()
-        if rpc_data.get("online"):
-            return rpc_data
-
-        # Fallback to direct Modbus TCP registers if RPC is unavailable
-        logger.info("WebBox RPC unavailable, trying Modbus TCP fallback...")
-        return self._poll_modbus()
-
-    def _poll_rpc(self) -> Dict[str, Any]:
-        url = f"http://{self.host}:{self.rpc_port}/rpc"
-        payload = {
+        # Pre-write our standard digital letter once when we start up!
+        # Instead of typing and sealing the exact same envelope every 3 seconds,
+        # we make one reusable template (`self._rpc_req_body`) and keep the phone
+        # line (`self._http_conn`) open!
+        rpc_payload = {
             "version": "1.0",
             "proc": "GetProcessData",
             "id": "1",
@@ -83,16 +73,67 @@ class SMAWebBox:
                 ]
             }
         }
+        self._rpc_req_body = b"RPC=" + urllib.parse.quote(json.dumps(rpc_payload)).encode("utf-8")
+        self._rpc_headers = {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Connection": "keep-alive"
+        }
+        self._http_conn: Optional[http.client.HTTPConnection] = None
+        self._http_lock = threading.Lock()
 
+    def _close_http_locked(self):
+        if self._http_conn is not None:
+            try:
+                self._http_conn.close()
+            except Exception:
+                pass
+            self._http_conn = None
+
+    def _send_rpc_request(self) -> Dict[str, Any]:
+        """Send JSON-RPC request over a persistent HTTP keep-alive connection."""
+        with self._http_lock:
+            for attempt in range(2):
+                try:
+                    if self._http_conn is None:
+                        self._http_conn = http.client.HTTPConnection(
+                            self.host, self.rpc_port, timeout=self.timeout
+                        )
+                    self._http_conn.request(
+                        "POST", "/rpc", body=self._rpc_req_body, headers=self._rpc_headers
+                    )
+                    resp = self._http_conn.getresponse()
+                    raw = resp.read()
+                    if resp.status == 200:
+                        return json.loads(raw.decode("utf-8"))
+                    raise ConnectionError(f"HTTP {resp.status}")
+                except Exception:
+                    self._close_http_locked()
+                    if attempt == 1:
+                        raise
+        return {}
+
+    def poll(self) -> Dict[str, Any]:
+        """
+        Polls Sunny Island and Sunny Boy telemetry.
+        Uses WebBox RPC protocol for rich native channel data with Modbus TCP support.
+        """
+        # Primary polling: Sunny WebBox JSON-RPC
+        rpc_data = self._poll_rpc()
+        if rpc_data.get("online"):
+            return rpc_data
+
+        # If the WebBox is completely unreachable on the network (socket timeout),
+        # don't waste another 3 seconds knocking on its Modbus door at the exact same IP!
+        if rpc_data.get("network_timeout"):
+            return rpc_data
+
+        # Fallback to direct Modbus TCP registers if RPC service is unavailable
+        logger.info("WebBox RPC unavailable, trying Modbus TCP fallback...")
+        return self._poll_modbus()
+
+    def _poll_rpc(self) -> Dict[str, Any]:
         try:
-            req_body = b"RPC=" + urllib.parse.quote(json.dumps(payload)).encode("utf-8")
-            req = urllib.request.Request(
-                url,
-                data=req_body,
-                headers={"Content-Type": "application/x-www-form-urlencoded"}
-            )
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
+            data = self._send_rpc_request()
 
             # The WebBox sends us a package containing reports from our devices.
             # In one single neat pass, we sort out the report for Sunny Island and Sunny Boy!
@@ -229,9 +270,11 @@ class SMAWebBox:
             }
 
         except Exception as e:
+            is_timeout = isinstance(e, (socket.timeout, TimeoutError, OSError))
             logger.warning(f"WebBox RPC polling error: {e}")
             return {
                 "online": False,
+                "network_timeout": is_timeout,
                 "protocol": "WebBox-RPC",
                 "sunny_island": {"online": False},
                 "sunny_boy": {"online": False},
@@ -287,4 +330,6 @@ class SMAWebBox:
             }
 
     def close(self):
+        with self._http_lock:
+            self._close_http_locked()
         self.modbus_client.close()
