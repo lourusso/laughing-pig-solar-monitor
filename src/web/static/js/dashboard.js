@@ -188,10 +188,13 @@ async function fetchLiveTelemetry() {
 
     const batTempVal = document.getElementById("bat-temp-val");
     if (batTempVal) {
-      if (data.battery_temp_c !== undefined && data.battery_temp_c !== null) {
-        batTempVal.textContent = `${Number(data.battery_temp_c).toFixed(1)} °C`;
+      if (data.battery_temp_f !== undefined && data.battery_temp_f !== null) {
+        batTempVal.textContent = `${Number(data.battery_temp_f).toFixed(1)} °F`;
+      } else if (data.battery_temp_c !== undefined && data.battery_temp_c !== null) {
+        const tempF = Number(data.battery_temp_c) * 1.8 + 32.0;
+        batTempVal.textContent = `${tempF.toFixed(1)} °F`;
       } else {
-        batTempVal.textContent = "-- °C";
+        batTempVal.textContent = "-- °F";
       }
     }
 

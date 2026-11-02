@@ -148,6 +148,27 @@ class SMAWebBox:
             sb_temp = safe_float(sb_channels.get("Temperature"), 0.0)
             sb_mode = sb_channels.get("Mode", "OK")
 
+            # Convert any raw temperature channels from °C to °F for display
+            def to_fahrenheit_channels(raw_list):
+                out = []
+                for ch in raw_list:
+                    item = dict(ch)
+                    u = item.get("unit", "")
+                    m = item.get("meta", "")
+                    if (u in ("°C", "degC", "C") or m in ("BatTmp", "Temperature")) and u != "°F":
+                        try:
+                            val_c = safe_float(item.get("value"))
+                            val_f = round(val_c * 1.8 + 32.0, 1)
+                            item["value"] = f"{val_f:.1f}"
+                            item["unit"] = "°F"
+                        except Exception:
+                            pass
+                    out.append(item)
+                return out
+
+            si_raw_channels = to_fahrenheit_channels(si_raw_channels)
+            sb_raw_channels = to_fahrenheit_channels(sb_raw_channels)
+
             return {
                 "online": True,
                 "protocol": "WebBox-RPC",

@@ -91,6 +91,7 @@ class Database:
                 ("house_load_watts", "REAL DEFAULT 0.0"),
                 ("shop_load_watts", "REAL DEFAULT 0.0"),
                 ("load_source", "TEXT DEFAULT 'eGauge S1'"),
+                ("battery_temp_f", "REAL DEFAULT 77.0"),
             ]
             for col_name, col_def in classic_cols:
                 try:
@@ -189,7 +190,13 @@ class Database:
         with self._get_connection() as conn:
             cur = conn.execute("SELECT * FROM snapshots ORDER BY id DESC LIMIT 1;")
             row = cur.fetchone()
-            return dict(row) if row else None
+            if not row:
+                return None
+            data = dict(row)
+            if "battery_temp_f" not in data or data["battery_temp_f"] is None:
+                c = data.get("battery_temp_c", 25.0) or 25.0
+                data["battery_temp_f"] = round(c * 1.8 + 32.0, 1)
+            return data
 
     def get_history(self, hours: int = 24, max_points: int = 300) -> List[Dict[str, Any]]:
         since = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()

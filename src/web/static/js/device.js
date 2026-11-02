@@ -60,6 +60,19 @@ document.addEventListener("DOMContentLoaded", () => {
       .replace(/"/g, "&quot;");
   }
 
+  function formatChannelVal(c) {
+    let val = c.value !== undefined ? c.value : '--';
+    let unit = c.unit || '';
+    if (unit === '°C' || unit === 'C' || unit === 'degC') {
+      const num = parseFloat(String(val).replace(',', ''));
+      if (!isNaN(num)) {
+        val = (num * 1.8 + 32.0).toFixed(1);
+        unit = '°F';
+      }
+    }
+    return `${val} ${unit}`.trim();
+  }
+
   async function fetchDeviceTelemetry() {
     try {
       const resp = await fetch(`/api/device/${deviceId}`);
@@ -162,8 +175,9 @@ document.addEventListener("DOMContentLoaded", () => {
     `;
 
     const btsConnected = d.battery_temp_c !== undefined && d.battery_temp_c > -40;
-    const btsVal = btsConnected ? `${d.battery_temp_c.toFixed(1)} °C` : "No BTS (Closed-Loop)";
-    const btsSub = btsConnected ? `${(d.battery_temp_f || 0).toFixed(1)} °F (Reg 4132)` : "Sensor Unplugged (Reg 4132)";
+    const btsF = d.battery_temp_f !== undefined ? d.battery_temp_f : ((d.battery_temp_c || 0) * 1.8 + 32);
+    const btsVal = btsConnected ? `${btsF.toFixed(1)} °F` : "No BTS (Closed-Loop)";
+    const btsSub = btsConnected ? "Register 4132" : "Sensor Unplugged (Reg 4132)";
 
     // 2. Categorized Sections
     parameterSections.innerHTML = `
@@ -285,13 +299,13 @@ document.addEventListener("DOMContentLoaded", () => {
           </div>
           <div class="param-card">
             <span class="param-label">Power FETs Temp</span>
-            <span class="param-val">${d.fet_temp_c !== undefined ? d.fet_temp_c.toFixed(1) + ' °C' : '--'}</span>
-            <span class="param-sub">${d.fet_temp_f !== undefined ? d.fet_temp_f.toFixed(1) + ' °F' : ''} (Reg 4133)</span>
+            <span class="param-val">${d.fet_temp_f !== undefined ? d.fet_temp_f.toFixed(1) + ' °F' : (d.fet_temp_c !== undefined ? (d.fet_temp_c * 1.8 + 32).toFixed(1) + ' °F' : '--')}</span>
+            <span class="param-sub">Register 4133</span>
           </div>
           <div class="param-card">
             <span class="param-label">PCB Controller Temp</span>
-            <span class="param-val">${d.pcb_temp_c !== undefined ? d.pcb_temp_c.toFixed(1) + ' °C' : '--'}</span>
-            <span class="param-sub">${d.pcb_temp_f !== undefined ? d.pcb_temp_f.toFixed(1) + ' °F' : ''} (Reg 4134)</span>
+            <span class="param-val">${d.pcb_temp_f !== undefined ? d.pcb_temp_f.toFixed(1) + ' °F' : (d.pcb_temp_c !== undefined ? (d.pcb_temp_c * 1.8 + 32).toFixed(1) + ' °F' : '--')}</span>
+            <span class="param-sub">Register 4134</span>
           </div>
           <div class="param-card">
             <span class="param-label">PWM Duty Cycle</span>
@@ -392,9 +406,9 @@ document.addEventListener("DOMContentLoaded", () => {
           <span class="stat-title">INTERNAL CELL TEMP</span>
           <span class="stat-badge">BMS Sensor</span>
         </div>
-        <div class="stat-main" style="color: #10b981;">${(d.battery_temp_c || 25).toFixed(1)} °C</div>
+        <div class="stat-main" style="color: #10b981;">${(d.battery_temp_f !== undefined ? d.battery_temp_f : ((d.battery_temp_c || 25) * 1.8 + 32)).toFixed(1)} °F</div>
         <div class="stat-footer">
-          <span>${d.battery_temp_f !== undefined ? d.battery_temp_f.toFixed(1) + ' °F' : ''}</span>
+          <span>CAN 0x356 / BatTmp</span>
           <span>Alarms: Normal</span>
         </div>
       </div>
@@ -431,8 +445,8 @@ document.addEventListener("DOMContentLoaded", () => {
           </div>
           <div class="param-card">
             <span class="param-label">Internal Cell Temperature</span>
-            <span class="param-val">${(d.battery_temp_c || 25).toFixed(1)} °C</span>
-            <span class="param-sub">${d.battery_temp_f ? d.battery_temp_f.toFixed(1) + ' °F' : ''} (CAN 0x356 / BatTmp)</span>
+            <span class="param-val">${(d.battery_temp_f !== undefined ? d.battery_temp_f : ((d.battery_temp_c || 25) * 1.8 + 32)).toFixed(1)} °F</span>
+            <span class="param-sub">CAN 0x356 / BatTmp</span>
           </div>
         </div>
       </section>
@@ -536,7 +550,7 @@ document.addEventListener("DOMContentLoaded", () => {
       id: c.meta || "--",
       name: c.name || c.meta || "--",
       desc: "LYNK II BMS Channel Passed to SI6048",
-      val: `${c.value !== undefined ? c.value : '--'} ${c.unit || ''}`
+      val: formatChannelVal(c)
     }));
 
     renderFilteredTable(diagSearch.value.toLowerCase().trim());
@@ -651,7 +665,7 @@ document.addEventListener("DOMContentLoaded", () => {
       id: c.meta || "--",
       name: c.name || c.meta || "--",
       desc: "Sunny Island Inverter Process Channel",
-      val: `${c.value !== undefined ? c.value : '--'} ${c.unit || ''}`
+      val: formatChannelVal(c)
     }));
 
     renderFilteredTable(diagSearch.value.toLowerCase().trim());
@@ -706,9 +720,9 @@ document.addEventListener("DOMContentLoaded", () => {
           <span class="stat-title">INVERTER HEALTH</span>
           <span class="stat-badge">Thermals</span>
         </div>
-        <div class="stat-main" style="color: #f59e0b;">${(d.temp_c || 0).toFixed(1)} °C</div>
+        <div class="stat-main" style="color: #f59e0b;">${(d.temp_f !== undefined ? d.temp_f : ((d.temp_c || 0) * 1.8 + 32)).toFixed(1)} °F</div>
         <div class="stat-footer">
-          <span>${d.temp_f ? d.temp_f.toFixed(1) + ' °F' : '--'}</span>
+          <span>Internal Thermals</span>
           <span>Status: ${escapeHtml(d.mode || "OK")}</span>
         </div>
       </div>
@@ -767,8 +781,8 @@ document.addEventListener("DOMContentLoaded", () => {
           </div>
           <div class="param-card">
             <span class="param-label">Internal Temperature</span>
-            <span class="param-val">${(d.temp_c || 0).toFixed(1)} °C</span>
-            <span class="param-sub">${d.temp_f ? d.temp_f.toFixed(1) + ' °F' : ''} (Temperature)</span>
+            <span class="param-val">${(d.temp_f !== undefined ? d.temp_f : ((d.temp_c || 0) * 1.8 + 32)).toFixed(1)} °F</span>
+            <span class="param-sub">WebBox Channel: Temperature</span>
           </div>
           <div class="param-card">
             <span class="param-label">Operating Mode</span>
@@ -784,7 +798,7 @@ document.addEventListener("DOMContentLoaded", () => {
       id: c.meta || "--",
       name: c.name || c.meta || "--",
       desc: "Sunny Boy WebBox Process Channel",
-      val: `${c.value !== undefined ? c.value : '--'} ${c.unit || ''}`
+      val: formatChannelVal(c)
     }));
 
     renderFilteredTable(diagSearch.value.toLowerCase().trim());

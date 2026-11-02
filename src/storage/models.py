@@ -44,6 +44,7 @@ class TelemetrySnapshot(BaseModel):
     battery_amps: float = 0.0          # Positive = charging, negative = discharging
     battery_power_watts: float = 0.0   # Positive = charging, negative = discharging
     battery_temp_c: float = 25.0
+    battery_temp_f: float = 77.0
 
     # AC Distribution & Consumption
     load_power_watts: float = 0.0      # Household / farm electrical load (from eGauge CT S1)

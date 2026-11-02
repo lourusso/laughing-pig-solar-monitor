@@ -72,6 +72,9 @@ class MidNiteClassic:
                 "pcb_temp_c": pcb_temp,
                 "fet_temp_c": fet_temp,
                 "battery_temp_c": bat_temp,
+                "pcb_temp_f": round(pcb_temp * 1.8 + 32.0, 1),
+                "fet_temp_f": round(fet_temp * 1.8 + 32.0, 1),
+                "battery_temp_f": round(bat_temp * 1.8 + 32.0, 1),
                 "error": None
             }
 
@@ -156,9 +159,9 @@ class MidNiteClassic:
                 (4125, "AmpHours", "Daily Amp-Hours", f"{data['amphours_today']} Ah"),
                 (4126, "Lifetime kW-Hours", "Lifetime Energy Generation", f"{data['energy_total_kwh']} kWh"),
                 (4128, "LifetimeAmpHours", "Lifetime Amp-Hours", f"{data['lifetime_amphours']} Ah"),
-                (4132, "BATTtemperature", "Battery Temp Sensor", f"{data['battery_temp_c']} °C ({data['battery_temp_c']*1.8+32:.1f} °F)"),
-                (4133, "FETtemperature", "Power FET Temperature", f"{data['fet_temp_c']} °C ({data['fet_temp_c']*1.8+32:.1f} °F)"),
-                (4134, "PCBTemperature", "PCB Control Board Temp", f"{data['pcb_temp_c']} °C ({data['pcb_temp_c']*1.8+32:.1f} °F)"),
+                (4132, "BATTtemperature", "Battery Temp Sensor", f"{data.get('battery_temp_f', round(data['battery_temp_c']*1.8+32, 1)):.1f} °F"),
+                (4133, "FETtemperature", "Power FET Temperature", f"{data.get('fet_temp_f', round(data['fet_temp_c']*1.8+32, 1)):.1f} °F"),
+                (4134, "PCBTemperature", "PCB Control Board Temp", f"{data.get('pcb_temp_f', round(data['pcb_temp_c']*1.8+32, 1)):.1f} °F"),
                 (4135, "NiteMinutesNoPwr", "Night Minutes (No Solar)", f"{data['night_minutes']} min"),
                 (4138, "FloatTimeToday", "Time in Float Stage Today", data['float_time_today_str']),
                 (4139, "AbsorbTime", "Absorb Time Counter", data['absorb_time_str']),
@@ -227,7 +230,7 @@ class MidNiteClassic:
                     {"register": 4154, "name": "Absorb Time Setpoint", "description": "Absorb Duration Setting", "value": data["absorb_setpoint_str"]},
                     {"register": 4155, "name": "Max Temp Comp Volts", "description": "Maximum Temp-Comp Voltage", "value": f"{data['max_temp_comp_v']} V"},
                     {"register": 4156, "name": "Min Temp Comp Volts", "description": "Minimum Temp-Comp Voltage", "value": f"{data['min_temp_comp_v']} V"},
-                    {"register": 4157, "name": "Temp Comp Slope", "description": "Battery Temp Compensation", "value": f"{data['temp_comp_mv_c_cell']} mV/°C/cell"},
+                    {"register": 4157, "name": "Temp Comp Slope", "description": "Battery Temp Compensation", "value": f"{data['temp_comp_mv_c_cell'] / 1.8:.2f} mV/°F/cell"},
                     {"register": 4162, "name": "Equalize Time Setpoint", "description": "Equalize Duration Setting", "value": data["equalize_setpoint_str"]},
                     {"register": 4163, "name": "Equalize Interval", "description": "Auto-Equalize Interval", "value": f"{data['equalize_interval_days']} Days"},
                     {"register": 4164, "name": "MPPT Mode", "description": "Tracking Algorithm Mode", "value": data["mppt_mode"]}

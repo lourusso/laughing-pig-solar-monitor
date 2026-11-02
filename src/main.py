@@ -295,6 +295,7 @@ class SolarMonitorService:
             battery_amps=float(si_data.get("battery_current", 0.0)),
             battery_power_watts=float(si_data.get("battery_power_watts", 0.0)),
             battery_temp_c=float(si_data.get("battery_temp_c", 25.0)),
+            battery_temp_f=float(si_data.get("battery_temp_f", round(float(si_data.get("battery_temp_c", 25.0)) * 1.8 + 32.0, 1))),
 
             load_power_watts=active_load_power,
             grid_gen_power_watts=float(si_data.get("grid_gen_power_watts", 0.0)),
@@ -342,6 +343,23 @@ class SolarMonitorService:
             return cached
 
         res: Dict[str, Any] = {}
+
+        def _convert_channels_to_f(channels: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+            converted = []
+            for ch in channels:
+                c = dict(ch)
+                unit = c.get("unit", "")
+                meta = c.get("meta", "")
+                if (unit in ("°C", "degC", "C") or meta in ("BatTmp", "Temperature")) and unit != "°F":
+                    try:
+                        val_c = float(str(c.get("value", "")).replace(",", ""))
+                        val_f = round(val_c * 1.8 + 32.0, 1)
+                        c["value"] = f"{val_f:.1f}"
+                        c["unit"] = "°F"
+                    except (ValueError, TypeError):
+                        pass
+                converted.append(c)
+            return converted
 
         if dev in ("midnite", "classic", "classic-1", "midnite-1", "classic1", "midnite1"):
             # Only ask for a full scan if Classic #1 is healthy and not in a failure cooldown
@@ -425,7 +443,7 @@ class SolarMonitorService:
                 "BatChrgVtg", "BatChrgCurMax", "BatDiChgCurMax",
                 "BatDiChgVtgMin", "BatCpyNom", "BatTyp", "BatChrgOp", "ChaStt"
             }
-            raw_channels = [c for c in si.get("raw_channels", []) if c.get("meta") in lynk_metas]
+            raw_channels = _convert_channels_to_f([c for c in si.get("raw_channels", []) if c.get("meta") in lynk_metas])
             
             bat_soc = float(si.get("battery_soc", 0.0))
             bat_soh = float(si.get("battery_soh", 100.0))
@@ -441,7 +459,7 @@ class SolarMonitorService:
                     {"meta": "BatSoc", "name": "Current battery charge status", "value": f"{bat_soc:.1f}", "unit": "%"},
                     {"meta": "BatVtg", "name": "Battery voltage", "value": f"{bat_vtg:.2f}", "unit": "V"},
                     {"meta": "TotBatCur", "name": "Battery net current (+Chg / -Dischg)", "value": f"{bat_cur:+.1f}", "unit": "A"},
-                    {"meta": "BatTmp", "name": "Battery cell temperature", "value": f"{bat_tmp:.1f}", "unit": "°C"},
+                    {"meta": "BatTmp", "name": "Battery cell temperature", "value": f"{bat_tmp_f:.1f}", "unit": "°F"},
                     {"meta": "Soh", "name": "Current battery capacity (SoH)", "value": f"{bat_soh:.0f}", "unit": "%"},
                     {"meta": "BatChrgVtg", "name": "BMS dynamic target charge voltage", "value": "54.40", "unit": "V"},
                     {"meta": "BatChrgCurMax", "name": "BMS max charge current limit", "value": "130.0", "unit": "A"},
@@ -451,7 +469,7 @@ class SolarMonitorService:
                     {"meta": "BatTyp", "name": "Inverter battery configuration", "value": "LiIon_Ext-BMS", "unit": ""},
                     {"meta": "CAN:0x351", "name": "Dynamic Charge / Discharge Limits", "value": "Active", "unit": "Target 54.4V"},
                     {"meta": "CAN:0x355", "name": "BMS State of Charge & Health", "value": f"{bat_soc:.0f}% / {bat_soh:.0f}%", "unit": "CAN Frame"},
-                    {"meta": "CAN:0x356", "name": "BMS Terminal Voltage, Current & Temp", "value": f"{bat_vtg:.1f}V | {bat_cur:+.1f}A | {bat_tmp:.1f}°C", "unit": "CAN Frame"},
+                    {"meta": "CAN:0x356", "name": "BMS Terminal Voltage, Current & Temp", "value": f"{bat_vtg:.1f}V | {bat_cur:+.1f}A | {bat_tmp_f:.1f}°F", "unit": "CAN Frame"},
                     {"meta": "CAN:0x35A", "name": "BMS Safety Alarms & Watchdogs", "value": "Normal (0x00)", "unit": "No Alarms"}
                 ]
 
@@ -498,7 +516,7 @@ class SolarMonitorService:
                         "raw_channels": []
                     }
             
-            raw_ch = list(si.get("raw_channels", []))
+            raw_ch = _convert_channels_to_f(list(si.get("raw_channels", [])))
             # Include eGauge sub-meter readings as companion diagnostic channels if online
             if self._latest_egauge_full and self._latest_egauge_full.get("online"):
                 eg = self._latest_egauge_full
@@ -532,7 +550,7 @@ class SolarMonitorService:
                 "model": "Sunny Boy 4000-US Grid-Tie Inverter",
                 "online": bool(sb.get("online")),
                 "data": sb,
-                "channels": sb.get("raw_channels", [])
+                "channels": _convert_channels_to_f(list(sb.get("raw_channels", [])))
             }
 
         elif dev in ("egauge", "eg3010", "meter", "submeter", "households", "household", "loads", "load", "main-house", "house-load", "shop-load", "farm", "farm-load", "farm-loads"):
