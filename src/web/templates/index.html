@@ -142,7 +142,7 @@
         </div>
 
         <!-- Connector: Battery to Loads -->
-        <div class="flow-connector load-conn" id="conn-load" title="Household Load Power Flow">
+        <div class="flow-connector load-conn" id="conn-load" title="Farm Load Power Flow">
           <div class="flow-line horizontal">
             <div class="flow-stream load-stream flow-idle" id="stream-load"></div>
           </div>
@@ -150,10 +150,10 @@
         </div>
 
         <!-- Load Consumption Node: Option 2 Rich Card with capacity meter & telemetry triad -->
-        <div class="flow-node load rich-card" onclick="window.location.href='/device/egauge'" style="cursor: pointer;" title="Click to inspect eGauge EG3010 (CT S1 House Load) telemetry">
+        <div class="flow-node load rich-card" onclick="window.location.href='/device/egauge'" style="cursor: pointer;" title="Click to inspect Farm Loads & eGauge EG3010 telemetry">
           <div class="node-header">
             <span class="node-icon">🏡</span>
-            <span class="node-label">Household Loads <span class="card-arrow">↗</span></span>
+            <span class="node-label">Farm Loads <span class="card-arrow">↗</span></span>
           </div>
 
           <!-- Inverter Capacity Meter -->
@@ -190,7 +190,7 @@
 
           <!-- System Link Footer -->
           <div class="node-system-footer">
-            <span id="load-footer-text">eGauge EG3010 · CT S1</span>
+            <span id="load-footer-text">eGauge EG3010 · S1 House + Shop</span>
           </div>
 
           <!-- Preserved legacy element for backward compatibility -->

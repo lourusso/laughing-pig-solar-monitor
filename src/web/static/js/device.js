@@ -792,18 +792,34 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // --- EGAUGE EG3010 SUB-METER RENDERER ---
   function renderEGaugeView(payload, d) {
-    deviceTitle.textContent = "eGauge EG3010 Energy Meter";
+    const farmLoad = d.farm_load_watts !== undefined ? d.farm_load_watts : (d.s1_house_load_watts || 0);
+    const shopLoad = d.calculated_shop_load_watts !== undefined ? d.calculated_shop_load_watts : (d.s3_shop_load_watts || 0);
+    const sbPac = d.sb4000_pac_watts !== undefined ? d.sb4000_pac_watts : 0;
+
+    deviceTitle.textContent = "eGauge EG3010 Energy Meter & Farm Loads";
     deviceSubtitle.textContent = `High-Precision Multi-Channel Sub-Meter (${d.ip || "192.168.42.126"})`;
-    badgeModel.textContent = "eGauge EG3010 Core (120V Sub-Metering)";
+    badgeModel.textContent = "eGauge EG3010 Core (Farm Load: ((SB4000 - S3) + S1))";
     badgeProtocol.textContent = "HTTP XML API (/cgi-bin/egauge)";
 
     heroGrid.innerHTML = `
       <div class="stat-card">
         <div class="stat-header">
+          <span class="stat-title">TOTAL FARM LOAD</span>
+          <span class="stat-badge">Combined</span>
+        </div>
+        <div class="stat-main" style="color: var(--load-color);">${farmLoad.toFixed(0)} W</div>
+        <div class="stat-footer">
+          <span>House: ${(d.s1_house_load_watts || 0).toFixed(0)}W</span>
+          <span>Shop: ${shopLoad.toFixed(0)}W</span>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-header">
           <span class="stat-title">MAIN HOUSE LOAD (CT S1)</span>
           <span class="stat-badge">120V Line 1</span>
         </div>
-        <div class="stat-main" style="color: var(--load-color);">${(d.s1_house_load_watts || 0).toFixed(0)} W</div>
+        <div class="stat-main" style="color: #38bdf8;">${(d.s1_house_load_watts || 0).toFixed(0)} W</div>
         <div class="stat-footer">
           <span>Current: ${(d.s1_house_load_amps || 0).toFixed(1)} A</span>
           <span>Energy: ${(d.s1_house_load_kwh || 0).toFixed(1)} kWh</span>
@@ -812,13 +828,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
       <div class="stat-card">
         <div class="stat-header">
-          <span class="stat-title">SHOP LOAD (CT S3)</span>
-          <span class="stat-badge">Autoformer</span>
+          <span class="stat-title">NET SHOP LOAD</span>
+          <span class="stat-badge">|SB4000 - S3|</span>
         </div>
-        <div class="stat-main" style="color: #38bdf8;">${(d.s3_shop_load_watts || 0).toFixed(0)} W</div>
+        <div class="stat-main" style="color: #10b981;">${shopLoad.toFixed(0)} W</div>
         <div class="stat-footer">
-          <span>Current: ${(d.s3_shop_load_amps || 0).toFixed(1)} A</span>
-          <span>Energy: ${(d.s3_shop_load_kwh || 0).toFixed(1)} kWh</span>
+          <span>SB4000: ${sbPac.toFixed(0)}W</span>
+          <span>Feeder S3: ${(d.s3_shop_load_watts || 0).toFixed(0)}W</span>
         </div>
       </div>
 
@@ -827,29 +843,41 @@ document.addEventListener("DOMContentLoaded", () => {
           <span class="stat-title">AC LINE FREQUENCY</span>
           <span class="stat-badge">Synchronized</span>
         </div>
-        <div class="stat-main" style="color: #10b981;">${(d.frequency_hz || 60).toFixed(2)} Hz</div>
+        <div class="stat-main" style="color: #f59e0b;">${(d.frequency_hz || 60).toFixed(2)} Hz</div>
         <div class="stat-footer">
           <span>Nominal: 60.00 Hz</span>
-          <span>Voltage: 120.0 V</span>
-        </div>
-      </div>
-
-      <div class="stat-card">
-        <div class="stat-header">
-          <span class="stat-title">DEVICE STATUS</span>
-          <span class="stat-badge">${Boolean(payload.online) ? 'ACTIVE' : 'OFFLINE'}</span>
-        </div>
-        <div class="stat-main" style="color: ${Boolean(payload.online) ? '#10b981' : '#ef4444'}; font-size: 1.5rem;">
-          ${Boolean(payload.online) ? 'ONLINE' : 'OFFLINE'}
-        </div>
-        <div class="stat-footer">
-          <span>MAC: ${escapeHtml(d.mac || payload.mac_address || "F8:2F:5B:01:33:F4")}</span>
-          <span>S/N: ${escapeHtml(d.serial || payload.serial_number || "0x1c7f464e")}</span>
+          <span>Status: ${Boolean(payload.online) ? 'Online' : 'Offline'}</span>
         </div>
       </div>
     `;
 
     parameterSections.innerHTML = `
+      <section class="device-section">
+        <div class="device-section-title"><span>🌾</span> Farm Load Power Balance Formula</div>
+        <div class="params-grid">
+          <div class="param-card">
+            <span class="param-label">Total Farm Load</span>
+            <span class="param-val" style="color: var(--load-color);">${farmLoad.toFixed(1)} W</span>
+            <span class="param-sub">Formula: ((SB4000 Pac) - S3) + S1</span>
+          </div>
+          <div class="param-card">
+            <span class="param-label">Net Shop Load</span>
+            <span class="param-val" style="color: #10b981;">${shopLoad.toFixed(1)} W</span>
+            <span class="param-sub">|SB4000 Pac (${sbPac.toFixed(0)}W) - S3 (${(d.s3_shop_load_watts || 0).toFixed(0)}W)|</span>
+          </div>
+          <div class="param-card">
+            <span class="param-label">Main House Load</span>
+            <span class="param-val" style="color: #38bdf8;">${(d.s1_house_load_watts || 0).toFixed(1)} W</span>
+            <span class="param-sub">eGauge CT S1 (120V Line 1)</span>
+          </div>
+          <div class="param-card">
+            <span class="param-label">Shop Feeder Flow (S3)</span>
+            <span class="param-val">${(d.s3_shop_load_watts || 0).toFixed(1)} W</span>
+            <span class="param-sub">eGauge CT S3 (Autoformer feeder)</span>
+          </div>
+        </div>
+      </section>
+
       <section class="device-section">
         <div class="device-section-title"><span>🏡</span> Main House Load Sub-Meter (CT S1)</div>
         <div class="params-grid">
@@ -869,34 +897,34 @@ document.addEventListener("DOMContentLoaded", () => {
             <span class="param-sub">Total Integrated Consumption</span>
           </div>
           <div class="param-card">
-            <span class="param-label">Dashboard Role</span>
-            <span class="param-val" style="font-size: 1rem; color: #10b981;">Primary House Load</span>
-            <span class="param-sub">Direct Feed to Household Card</span>
+            <span class="param-label">Panel Destination</span>
+            <span class="param-val" style="font-size: 1rem; color: #10b981;">Main House Panel</span>
+            <span class="param-sub">120V Single Conductor</span>
           </div>
         </div>
       </section>
 
       <section class="device-section">
-        <div class="device-section-title"><span>🏭</span> Shop Load & SB4000 Sub-Meter (CT S3)</div>
+        <div class="device-section-title"><span>🏭</span> Shop Feeder Sub-Meter (CT S3) & Inverter</div>
         <div class="params-grid">
           <div class="param-card">
-            <span class="param-label">Instantaneous Power</span>
+            <span class="param-label">Feeder S3 Instantaneous</span>
             <span class="param-val">${(d.s3_shop_load_watts || 0).toFixed(1)} W</span>
             <span class="param-sub">Register did=16 (Formula: -S3*L1)</span>
           </div>
           <div class="param-card">
-            <span class="param-label">Calculated AC Current</span>
-            <span class="param-val">${(d.s3_shop_load_amps || 0).toFixed(1)} A</span>
-            <span class="param-sub">120V Single Conductor Load</span>
+            <span class="param-label">SB4000 AC Solar Power</span>
+            <span class="param-val">${sbPac.toFixed(1)} W</span>
+            <span class="param-sub">SMA Sunny Boy 4000 Grid-Tie</span>
           </div>
           <div class="param-card">
-            <span class="param-label">Cumulative Energy</span>
-            <span class="param-val">${(d.s3_shop_load_kwh || 0).toFixed(2)} kWh</span>
-            <span class="param-sub">Total Integrated Consumption</span>
+            <span class="param-label">Calculated Shop Load</span>
+            <span class="param-val">${shopLoad.toFixed(1)} W</span>
+            <span class="param-sub">|SB4000 Pac - S3| (Always Positive)</span>
           </div>
           <div class="param-card">
-            <span class="param-label">Inverter & Topology</span>
-            <span class="param-val" style="font-size: 1rem; color: #38bdf8;">SB4000 Autoformer</span>
+            <span class="param-label">Topology</span>
+            <span class="param-val" style="font-size: 1rem; color: #38bdf8;">Autoformer Link</span>
             <span class="param-sub">Passes via autoformer to house</span>
           </div>
         </div>

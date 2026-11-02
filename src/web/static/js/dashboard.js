@@ -205,14 +205,14 @@ async function fetchLiveTelemetry() {
       }
     }
 
-    // Household Loads
+    // Farm Loads (Formula: ((SB4000 Pac) - S3) + S1)
     const loadWatts = Math.round(data.load_power_watts || 0);
     const loadPowerEl = document.getElementById("load-power");
     if (loadPowerEl) loadPowerEl.textContent = `${loadWatts} W`;
     const loadSubEl = document.getElementById("load-sub");
     if (loadSubEl) loadSubEl.textContent = `${(data.ac_voltage_volts || 120).toFixed(1)}V @ ${(data.ac_frequency_hz || 60).toFixed(2)}Hz`;
 
-    // --- Option 2: Household Loads Rich Card Telemetry ---
+    // --- Option 2: Farm Loads Rich Card Telemetry ---
     // 1. Inverter Capacity Meter (Relative to 6000W continuous rating of SI 6048)
     const loadGaugeFill = document.getElementById("load-gauge-fill");
     const loadCapacityPct = Math.round((loadWatts / 6000) * 100);
@@ -231,7 +231,7 @@ async function fetchLiveTelemetry() {
       }
     }
 
-    // 2. Household Load Status Pill
+    // 2. Farm Load Status Pill
     const loadPill = document.getElementById("load-pill");
     const loadPillText = document.getElementById("load-pill-text");
     if (loadPill && loadPillText) {
@@ -267,8 +267,12 @@ async function fetchLiveTelemetry() {
 
     const loadFooterText = document.getElementById("load-footer-text");
     if (loadFooterText) {
-      if (data.load_source === "eGauge S1" || data.egauge_online) {
+      if (data.load_source === "eGauge Farm Load") {
+        loadFooterText.textContent = "eGauge EG3010 · S1 House + Shop";
+      } else if (data.load_source === "eGauge S1") {
         loadFooterText.textContent = "eGauge EG3010 · CT S1 (120V)";
+      } else if (data.egauge_online) {
+        loadFooterText.textContent = "eGauge EG3010 · S1 House + Shop";
       } else {
         loadFooterText.textContent = "SMA Sunny Island 6048-US";
       }
@@ -295,7 +299,7 @@ async function fetchLiveTelemetry() {
     // 2. Generator Flow -> Battery / System
     updateFlowConnector("conn-gen", "stream-gen", "arrow-gen", genWatts, genWatts > 25 ? 1 : 0, "gen-stream");
 
-    // 3. System / Battery Flow -> Household Loads
+    // 3. System / Battery Flow -> Farm Loads
     updateFlowConnector("conn-load", "stream-load", "arrow-load", loadWatts, loadWatts > 15 ? 1 : 0, "load-stream");
 
     // Generator Card in Metrics Grid (if visible)

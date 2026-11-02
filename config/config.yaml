@@ -41,6 +41,7 @@ egauge:
   port: 80
   timeout_seconds: 3.0
   mac_address: "F8:2F:5B:01:33:F4"
+  use_for_farm_loads: true       # Farm Load = ((SB4000 Pac) - S3) + S1
   use_s1_for_house_loads: true
 
 mqtt:

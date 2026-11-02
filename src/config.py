@@ -51,6 +51,7 @@ class EGaugeConfig(BaseModel):
     port: int = 80
     timeout_seconds: float = 3.0
     mac_address: str = "F8:2F:5B:01:33:F4"
+    use_for_farm_loads: bool = True
     use_s1_for_house_loads: bool = True
 
 class MQTTConfig(BaseModel):

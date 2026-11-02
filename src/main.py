@@ -208,23 +208,6 @@ class SolarMonitorService:
         si_data = webbox_data.get("sunny_island", {})
         sb_data = webbox_data.get("sunny_boy", {})
 
-        # eGauge Sub-Metering Telemetry (CT S1: Main House Load, CT S3: Shop Load)
-        eg_online = bool(egauge_data.get("online"))
-        s1_house_watts = float(egauge_data.get("s1_house_load_watts", 0.0))
-        s3_shop_watts = float(egauge_data.get("s3_shop_load_watts", 0.0))
-        eg_freq = float(egauge_data.get("frequency_hz", 60.0))
-
-        # House Loads: Replace with data from S1 on the eGauge
-        use_s1 = hasattr(self.config, "egauge") and getattr(self.config.egauge, "use_s1_for_house_loads", True)
-        if eg_online and use_s1:
-            active_house_load = s1_house_watts
-            load_source = "eGauge S1"
-        else:
-            active_house_load = float(si_data.get("load_power_watts", 0.0))
-            load_source = "Sunny Island"
-
-        active_freq = eg_freq if (eg_online and eg_freq > 0) else float(si_data.get("ac_frequency", 60.0))
-
         c1_watts = float(classic1_data.get("pv_power_watts", 0.0))
         c2_watts = float(classic2_data.get("pv_power_watts", 0.0))
         pv_dc = round(c1_watts + c2_watts, 1)
@@ -235,6 +218,35 @@ class SolarMonitorService:
 
         pv_ac = float(sb_data.get("pv_power_watts", 0.0))
         total_pv = round(pv_dc + pv_ac, 1)
+
+        # eGauge Sub-Metering Telemetry (CT S1: Main House Load, CT S3: Shop Feeder)
+        eg_online = bool(egauge_data.get("online"))
+        s1_house_watts = float(egauge_data.get("s1_house_load_watts", 0.0))
+        s3_feeder_watts = float(egauge_data.get("s3_shop_load_watts", 0.0))
+        eg_freq = float(egauge_data.get("frequency_hz", 60.0))
+
+        # Farm Loads Formula: ((SB4000 Pac) - S3) + S1
+        # Net Shop Load: abs(pv_ac - s3_feeder_watts), always positive
+        # Farm Load: Shop Load + S1 House Load
+        use_farm_formula = hasattr(self.config, "egauge") and getattr(self.config.egauge, "use_for_farm_loads", True)
+        use_s1_only = hasattr(self.config, "egauge") and getattr(self.config.egauge, "use_s1_for_house_loads", True)
+
+        if eg_online and use_farm_formula:
+            calc_shop_load = round(abs(pv_ac - s3_feeder_watts), 1)
+            active_farm_load = round(calc_shop_load + s1_house_watts, 1)
+            active_load_power = active_farm_load
+            load_source = "eGauge Farm Load"
+        elif eg_online and use_s1_only:
+            calc_shop_load = s3_feeder_watts
+            active_farm_load = s1_house_watts
+            active_load_power = active_farm_load
+            load_source = "eGauge S1"
+        else:
+            calc_shop_load = s3_feeder_watts
+            active_load_power = float(si_data.get("load_power_watts", 0.0))
+            load_source = "Sunny Island"
+
+        active_freq = eg_freq if (eg_online and eg_freq > 0) else float(si_data.get("ac_frequency", 60.0))
 
         # Active battery volts on DC bus (prefer online classic, fallback to other)
         bat_volts = float(classic1_data.get("battery_voltage", 0.0))
@@ -284,7 +296,7 @@ class SolarMonitorService:
             battery_power_watts=float(si_data.get("battery_power_watts", 0.0)),
             battery_temp_c=float(si_data.get("battery_temp_c", 25.0)),
 
-            load_power_watts=active_house_load,
+            load_power_watts=active_load_power,
             grid_gen_power_watts=float(si_data.get("grid_gen_power_watts", 0.0)),
             generator_volts=float(si_data.get("generator_voltage", 0.0)),
             generator_amps=float(si_data.get("generator_current", 0.0)),
@@ -294,7 +306,7 @@ class SolarMonitorService:
 
             egauge_online=eg_online,
             house_load_watts=s1_house_watts,
-            shop_load_watts=s3_shop_watts,
+            shop_load_watts=calc_shop_load,
             load_source=load_source,
 
             classic_online=bool(classic1_data.get("online") or classic2_data.get("online")),
@@ -523,8 +535,8 @@ class SolarMonitorService:
                 "channels": sb.get("raw_channels", [])
             }
 
-        elif dev in ("egauge", "eg3010", "meter", "submeter", "households", "household", "loads", "load", "main-house", "house-load", "shop-load"):
-            eg = self._latest_egauge_full
+        elif dev in ("egauge", "eg3010", "meter", "submeter", "households", "household", "loads", "load", "main-house", "house-load", "shop-load", "farm", "farm-load", "farm-loads"):
+            eg = dict(self._latest_egauge_full) if self._latest_egauge_full else {}
             if not eg or not eg.get("online"):
                 if self.egauge:
                     try:
@@ -542,11 +554,35 @@ class SolarMonitorService:
                     "raw_registers": []
                 }
 
-            channels = eg.get("channels") or eg.get("raw_registers") or []
+            # Augment with Farm Loads calculation: ((SB4000 Pac) - S3) + S1
+            sb_pwr = float(self._latest_webbox_full.get("sunny_boy", {}).get("pv_power_watts", 0.0))
+            s1_pwr = float(eg.get("s1_house_load_watts", 0.0))
+            s3_pwr = float(eg.get("s3_shop_load_watts", 0.0))
+            calc_shop = round(abs(sb_pwr - s3_pwr), 1)
+            calc_farm = round(calc_shop + s1_pwr, 1)
+
+            eg["sb4000_pac_watts"] = sb_pwr
+            eg["calculated_shop_load_watts"] = calc_shop
+            eg["farm_load_watts"] = calc_farm
+
+            channels = list(eg.get("channels") or eg.get("raw_registers") or [])
+            channels.insert(0, {
+                "meta": "calc:farm_load",
+                "name": "Total Farm Load ((SB4000 Pac - S3) + S1)",
+                "value": f"{calc_farm:.1f}",
+                "unit": "W"
+            })
+            channels.insert(1, {
+                "meta": "calc:shop_load",
+                "name": "Shop Load (|SB4000 Pac - S3|)",
+                "value": f"{calc_shop:.1f}",
+                "unit": "W"
+            })
+
             res = {
                 "device_id": "egauge",
-                "device_name": "eGauge EG3010 Energy Meter",
-                "model": "eGauge EG3010 Multi-Channel Sub-Meter (120V S1 House / S3 Shop)",
+                "device_name": "eGauge EG3010 Energy Meter & Farm Loads",
+                "model": "eGauge EG3010 Multi-Channel Sub-Meter (120V S1 House + S3 Shop)",
                 "online": bool(eg.get("online")),
                 "data": eg,
                 "channels": channels
