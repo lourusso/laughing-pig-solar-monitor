@@ -150,10 +150,14 @@ class EGaugeClient:
                 elif did == "17" or rtype == "F" or "frequency" in name.lower():
                     frequency = i_val
 
-            # Household electrical loads consume positive watts.
+            # Household electrical loads on S1 consume positive watts.
             # In eGauge settings, S1 formula is configured as -S1*L1, yielding positive draw.
+            # However, S3 ("SB Power at Main House Load", formula -S3*L1) is bidirectional!
+            # - Positive (+) S3 means excess Sunny Boy solar power is flowing OUT of the Shop.
+            # - Negative (-) S3 means power is flowing INTO the Shop (such as at night when it's dark!).
+            # We MUST keep the negative sign on s3_watts so ((SB4000 Pac) - S3) calculates the true Shop load!
             s1_watts = max(0.0, round(s1_watts, 1))
-            s3_watts = max(0.0, round(s3_watts, 1))
+            s3_watts = round(s3_watts, 1)
 
             # Converting Joules to Kilowatt-Hours (kWh):
             # A Joule is 1 Watt of power for 1 second.
@@ -170,7 +174,7 @@ class EGaugeClient:
             # - Watts = Total power (Watts = Volts * Amps)
             # To find Amps: Amps = Watts / 120 Volts!
             s1_amps = round(s1_watts / 120.0, 1) if s1_watts > 0 else 0.0
-            s3_amps = round(s3_watts / 120.0, 1) if s3_watts > 0 else 0.0
+            s3_amps = round(abs(s3_watts) / 120.0, 1) 
 
             return {
                 "online": True,
